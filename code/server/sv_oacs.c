@@ -26,6 +26,24 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //#include "sv_oacs.h"
 //#include "../libjson/cJSON.h"
 
+
+void SV_ExtendedRecordInit(void) {
+    // Initialize the features
+    //SV_ExtendedRecordInterframeInit();
+    
+    // Write the types
+    //SV_ExtendedRecordWriteStruct();
+}
+
+void SV_ExtendedRecordUpdate(void) {
+    // Update the features values
+    //SV_ExtendedRecordInterframeUpdate();
+    
+    //SV_ExtendedRecordWriteValues();
+}
+
+// Write the types of the features in a text file, in JSON format
+// Note: this function only needs to be called once, preferably at engine startup (Com_Init)
 void SV_ExtendedRecordWriteStruct(void) {
     char* name = "oacs/type.txt";
     fileHandle_t	file;
@@ -49,14 +67,56 @@ void SV_ExtendedRecordWriteStruct(void) {
 	
 	out=cJSON_PrintUnformatted(root);	cJSON_Delete(root); FS_Write(out, strlen(out), file); free(out);
     
-    //FS_Write ("test", 4, file);
+    
+    
+    // Prepare the interframe (convert to an array to allow for walking through it)
+    // feature_t* interframe_array;
+    // interframe_array = SV_ExtendedRecordInterframeToArray(sv.interframe);
+
+    // Convert the interframe_array into a JSON tree
+    // cJSON* root;
+    // root = SV_ExtendedRecordFeaturesToJson(interframe_array, qtrue, qfalse);
+    
+    // Convert the json tree into a text format (unformatted = no line returns)
+    
+    // char *out;
+    // out=cJSON_PrintUnformatted(root); cJSON_Delete(root);
+    
+    // file = FS_FOpenFileWrite( name );
+    // FS_Write(out, strlen(out), file); free(out);
+
     FS_FCloseFile( file );
 }
 
-void SV_ExtendedRecordCreateTypes(void) {
+// Write the values of the current interframe's features
+void SV_ExtendedRecordWriteValues(void) {
+
+    // Convert the interframe_array into a JSON tree
+    // cJSON* root;
+    // root = SV_ExtendedRecordFeaturesToJson(interframe_array, qfalse, qtrue);
+}
+
+// Will init the interframe types and values
+void SV_ExtendedRecordInterframeInit(void) {
 
 }
 
-void SV_ExtendedRecordTypesToJson(void) {
+void SV_ExtendedRecordInterframeUpdate(void) {
 
 }
+
+/*
+// Will return a feature_t* array from an interframe_t (this is necessary because in C there's no safe way to walk/iterate through a struct, and a struct for interframe is necessary to directly access a feature. An alternative could be a hash dictionary.)
+feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe) {
+
+}
+*/
+
+// Loop through an array of feature_t and convert to JSON
+cJSON* SV_ExtendedRecordFeaturesToJson(feature_t* interframe, qboolean savetypes, qboolean savevalues) {
+    cJSON *root;
+    root=cJSON_CreateObject();
+    return root;
+}
+
+

@@ -26,7 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../game/g_public.h"
 #include "../game/bg_public.h"
 #include "sv_oacs.h"
-#include "../libjson/cJSON.h"
+//#include "../libjson/cJSON.h"
 
 //=============================================================================
 
