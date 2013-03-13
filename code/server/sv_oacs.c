@@ -26,7 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //#include "sv_oacs.h"
 //#include "../libjson/cJSON.h"
 
-feature_t interframe[FEATURES_COUNT];
+//feature_t interframe[FEATURES_COUNT];
 
 cvar_t  *sv_oacsTypesFile;
 cvar_t  *sv_oacsDataFile;
@@ -34,10 +34,10 @@ cvar_t  *sv_oacsDataFile;
 
 void SV_ExtendedRecordInit(void) {
     // Initialize the features
-    //SV_ExtendedRecordInterframeInit();
+    SV_ExtendedRecordInterframeInit();
     
     // Write the types
-    //SV_ExtendedRecordWriteStruct();
+    SV_ExtendedRecordWriteStruct();
 }
 
 void SV_ExtendedRecordUpdate(void) {
@@ -54,13 +54,12 @@ void SV_ExtendedRecordWriteStruct(void) {
     fileHandle_t	file;
 
     Com_Printf("Saving the record struct in file %s", sv_oacsTypesFile->string);
+    
+    /* Test
     file = FS_FOpenFileWrite( sv_oacsTypesFile->string );
     
-    cJSON *root,*fmt;char *out;	/* declare a few. */
+    cJSON *root,*fmt;char *out;
 
-	/* Here we construct some JSON standards, from the JSON site. */
-	
-	/* Our "Video" datatype: */
 	root=cJSON_CreateObject();	
 	cJSON_AddItemToObject(root, "name", cJSON_CreateString("Jack (\"Bee\") Nimble"));
 	cJSON_AddItemToObject(root, "format", fmt=cJSON_CreateObject());
@@ -71,6 +70,7 @@ void SV_ExtendedRecordWriteStruct(void) {
 	cJSON_AddNumberToObject(fmt,"frame rate",	24);
 	
 	out=cJSON_PrintUnformatted(root);	cJSON_Delete(root); FS_Write(out, strlen(out), file); free(out);
+    */
     
     
     
@@ -79,18 +79,17 @@ void SV_ExtendedRecordWriteStruct(void) {
     // interframe_array = SV_ExtendedRecordInterframeToArray(sv.interframe);
 
     // Convert the interframe_array into a JSON tree
-    // cJSON* root;
-    // root = SV_ExtendedRecordFeaturesToJson(interframe_array, qtrue, qfalse);
+    cJSON* root;
+    root = SV_ExtendedRecordFeaturesToJson(sv.interframe, qtrue, qfalse);
     
     // Convert the json tree into a text format (unformatted = no line returns)
+    char *out;
+    out=cJSON_PrintUnformatted(root); cJSON_Delete(root);
     
-    // char *out;
-    // out=cJSON_PrintUnformatted(root); cJSON_Delete(root);
-    
-    // file = FS_FOpenFileWrite( sv_oacsTypesFile->string );
-    // FS_Write(out, strlen(out), file); free(out);
-
-    FS_FCloseFile( file );
+    // Output into the text file
+    file = FS_FOpenFileWrite( sv_oacsTypesFile->string ); // open in write mode
+    FS_Write(out, strlen(out), file); free(out); // write the text and free it
+    FS_FCloseFile( file ); // close the file
 }
 
 // Write the values of the current interframe's features
@@ -105,7 +104,36 @@ void SV_ExtendedRecordWriteValues(void) {
 
 // Will init the interframe types and values
 void SV_ExtendedRecordInterframeInit(void) {
+    int i;
 
+    // PlayerID
+    sv.interframe[FEATURE_PLAYERID].key = "playerid";
+    sv.interframe[FEATURE_PLAYERID].type = FEATURE_ID;
+    
+    // Timestamp
+    sv.interframe[FEATURE_TIMESTAMP].key = "timestamp";
+    sv.interframe[FEATURE_TIMESTAMP].type = FEATURE_ID;
+    
+    // Framenumber
+    sv.interframe[FEATURE_FRAMENUMBER].key = "framenumber";
+    sv.interframe[FEATURE_FRAMENUMBER].type = FEATURE_ID;
+    
+    // Frags in a row (accumulator)
+    sv.interframe[FEATURE_FRAGSINAROW].key = "fragsinarow";
+    sv.interframe[FEATURE_FRAGSINAROW].type = FEATURE_HUMAN;
+    
+    // Armor
+    sv.interframe[FEATURE_ARMOR].key = "armor";
+    sv.interframe[FEATURE_ARMOR].type = FEATURE_GAMESPECIFIC;
+    
+    // Now we will initialize the value for every feature and every client (else we may get a weird random value from an old memory zone that was not cleaned up)
+    for (i=0;i<MAX_CLIENTS;i++) {
+        sv.interframe[FEATURE_PLAYERID].value[i] = 0;
+        sv.interframe[FEATURE_TIMESTAMP].value[i] = 0;
+        sv.interframe[FEATURE_FRAMENUMBER].value[i] = 0;
+        sv.interframe[FEATURE_FRAGSINAROW].value[i] = 0;
+        sv.interframe[FEATURE_ARMOR].value[i] = 0;
+    }
 }
 
 void SV_ExtendedRecordInterframeUpdate(void) {
@@ -120,9 +148,20 @@ feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe) {
 */
 
 // Loop through an array of feature_t and convert to JSON
-cJSON* SV_ExtendedRecordFeaturesToJson(feature_t* interframe, qboolean savetypes, qboolean savevalues) {
-    cJSON *root;
+cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues) {
+    int i;
+    cJSON *root, *feature;
+    
+    //root=cJSON_CreateArray();
     root=cJSON_CreateObject();
+	for (i=0;i<FEATURES_COUNT;i++)
+	{
+        cJSON_AddItemToObject(root, interframe[i].key, feature=cJSON_CreateObject());
+		//cJSON_AddItemToArray(root,feature=cJSON_CreateObject());
+		cJSON_AddStringToObject(feature, "key", interframe[i].key);
+        cJSON_AddNumberToObject(feature, "type", interframe[i].type);
+	}
+    
     return root;
 }
 

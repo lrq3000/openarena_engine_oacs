@@ -35,9 +35,9 @@ typedef enum {
 // Structure of one feature
 typedef struct feature_s
 {
-    char* key;
+    char *key;
 	featureType_t type;
-    double value;
+    double value[MAX_CLIENTS]; // one value for each player (the key and type do not change, they are the same for every player. This saves some memory space.)
 } feature_t;
 
 // Struct containing the list of all features that will be collected
@@ -61,7 +61,7 @@ typedef enum {
 } interframeIndex_t;
 
 // Declare the sv.interframe global variable, which will contain the array of all features
-extern feature_t interframe[FEATURES_COUNT];
+//extern feature_t interframe[FEATURES_COUNT];
 
 // Cvars
 extern cvar_t  *sv_oacsTypesFile;
@@ -75,5 +75,5 @@ void SV_ExtendedRecordWriteValues(void);
 void SV_ExtendedRecordInterframeInit(void);
 void SV_ExtendedRecordInterframeUpdate(void);
 //feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe);
-cJSON* SV_ExtendedRecordFeaturesToJson(feature_t* interframe, qboolean savetypes, qboolean savevalues);
+cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues);
 
