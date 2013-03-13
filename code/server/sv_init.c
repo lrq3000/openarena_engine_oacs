@@ -839,6 +839,9 @@ void SV_Init (void)
 
 	// Load saved bans
 	Cbuf_AddText("rehashbans\n");
+    
+    // OACS: Write down the extended records structures
+    SV_ExtendedRecordWriteStruct();
 }
 
 

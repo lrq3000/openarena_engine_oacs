@@ -177,6 +177,10 @@ ifndef USE_VOIP
 USE_VOIP=1
 endif
 
+ifndef USE_OACS
+USE_OACS=1
+endif
+
 ifndef USE_INTERNAL_SPEEX
 USE_INTERNAL_SPEEX=1
 endif
@@ -224,6 +228,7 @@ NDIR=$(MOUNT_DIR)/null
 UIDIR=$(MOUNT_DIR)/ui
 Q3UIDIR=$(MOUNT_DIR)/q3_ui
 JPDIR=$(MOUNT_DIR)/jpeg-8c
+JSONDIR=$(MOUNT_DIR)/libjson
 SPEEXDIR=$(MOUNT_DIR)/libspeex
 ZDIR=$(MOUNT_DIR)/zlib
 Q3ASMDIR=$(MOUNT_DIR)/tools/asm
@@ -958,6 +963,10 @@ else
   RENDERER_LIBS += -ljpeg
 endif
 
+ifneq ($(USE_OACS),0)
+  BASE_CFLAGS += -I$(JSONDIR)
+endif
+
 ifeq ("$(CC)", $(findstring "$(CC)", "clang" "clang++"))
   BASE_CFLAGS += -Qunused-arguments
 endif
@@ -1430,6 +1439,7 @@ Q3OBJ = \
   $(B)/client/sv_init.o \
   $(B)/client/sv_main.o \
   $(B)/client/sv_net_chan.o \
+  $(B)/client/sv_oacs.o \
   $(B)/client/sv_snapshot.o \
   $(B)/client/sv_world.o \
   \
@@ -1476,6 +1486,11 @@ Q3OBJ = \
   \
   $(B)/client/con_log.o \
   $(B)/client/sys_main.o
+
+ifneq ($(USE_OACS),0)
+  Q3OBJ += \
+	$(B)/client/cJSON.o
+endif
 
 ifeq ($(PLATFORM),mingw32)
   Q3OBJ += \
@@ -1845,6 +1860,7 @@ Q3DOBJ = \
   $(B)/ded/sv_init.o \
   $(B)/ded/sv_main.o \
   $(B)/ded/sv_net_chan.o \
+  $(B)/ded/sv_oacs.o \
   $(B)/ded/sv_snapshot.o \
   $(B)/ded/sv_world.o \
   \
@@ -1906,6 +1922,11 @@ Q3DOBJ = \
   \
   $(B)/ded/con_log.o \
   $(B)/ded/sys_main.o
+
+ifneq ($(USE_OACS),0)
+  Q3DOBJ += \
+	$(B)/ded/cJSON.o
+endif
 
 ifeq ($(ARCH),i386)
   Q3DOBJ += \
@@ -2387,6 +2408,9 @@ $(B)/ded/%.o: $(ZDIR)/%.c
 
 $(B)/ded/%.o: $(BLIBDIR)/%.c
 	$(DO_BOT_CC)
+
+$(B)/ded/%.o: $(JSONDIR)/%.c
+	$(DO_DED_CC)
 
 $(B)/ded/%.o: $(SYSDIR)/%.c
 	$(DO_DED_CC)
