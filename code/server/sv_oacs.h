@@ -52,12 +52,20 @@ typedef struct interframe_s
 // List all indexes for any feature.
 // This is necessary in order to allow for a quick access to a feature (for updating purposes)
 typedef enum {
+    FEATURE_PLAYERID,
+    FEATURE_TIMESTAMP,
+    FEATURE_FRAMENUMBER,
+    FEATURE_FRAGSINAROW,
 	FEATURE_ARMOR,
     FEATURES_COUNT // Important: always place this at the very end! This is used to count the total number of features
 } interframeIndex_t;
 
 // Declare the sv.interframe global variable, which will contain the array of all features
-feature_t interframe[FEATURES_COUNT];
+extern feature_t interframe[FEATURES_COUNT];
+
+// Cvars
+extern cvar_t  *sv_oacsTypesFile;
+extern cvar_t  *sv_oacsDataFile;
 
 // Functions
 void SV_ExtendedRecordInit(void);

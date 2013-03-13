@@ -26,6 +26,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //#include "sv_oacs.h"
 //#include "../libjson/cJSON.h"
 
+feature_t interframe[FEATURES_COUNT];
+
+cvar_t  *sv_oacsTypesFile;
+cvar_t  *sv_oacsDataFile;
+
 
 void SV_ExtendedRecordInit(void) {
     // Initialize the features
@@ -43,13 +48,13 @@ void SV_ExtendedRecordUpdate(void) {
 }
 
 // Write the types of the features in a text file, in JSON format
-// Note: this function only needs to be called once, preferably at engine startup (Com_Init)
+// Note: this function only needs to be called once, preferably at engine startup (Com_Init or SV_Init)
 void SV_ExtendedRecordWriteStruct(void) {
-    char* name = "oacs/type.txt";
+    //char* name = "oacs/type.txt";
     fileHandle_t	file;
 
-    Com_Printf("Saving the record struct in file %s", name);
-    file = FS_FOpenFileWrite( name );
+    Com_Printf("Saving the record struct in file %s", sv_oacsTypesFile->string);
+    file = FS_FOpenFileWrite( sv_oacsTypesFile->string );
     
     cJSON *root,*fmt;char *out;	/* declare a few. */
 
@@ -82,7 +87,7 @@ void SV_ExtendedRecordWriteStruct(void) {
     // char *out;
     // out=cJSON_PrintUnformatted(root); cJSON_Delete(root);
     
-    // file = FS_FOpenFileWrite( name );
+    // file = FS_FOpenFileWrite( sv_oacsTypesFile->string );
     // FS_Write(out, strlen(out), file); free(out);
 
     FS_FCloseFile( file );
@@ -94,6 +99,8 @@ void SV_ExtendedRecordWriteValues(void) {
     // Convert the interframe_array into a JSON tree
     // cJSON* root;
     // root = SV_ExtendedRecordFeaturesToJson(interframe_array, qfalse, qtrue);
+    
+    // file = FS_FOpenFileAppend( sv_oacsDataFile->string );
 }
 
 // Will init the interframe types and values
