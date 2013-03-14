@@ -834,6 +834,7 @@ void SV_Init (void)
     // oacs extended recording variables
     sv_oacsTypesFile = Cvar_Get ("sv_oacsTypesFile", "oacs/types.txt", CVAR_ARCHIVE );
     sv_oacsDataFile = Cvar_Get ("sv_oacsDataFile", "oacs/data.txt", CVAR_ARCHIVE );
+    sv_oacsEnable = Cvar_Get ("sv_oacsEnable", "1", CVAR_ARCHIVE );
 
 	// initialize bot cvars so they are listed and can be set before loading the botlib
 	SV_BotInitCvars();

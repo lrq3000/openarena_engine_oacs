@@ -25,26 +25,30 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "server.h"
 //#include "sv_oacs.h"
 //#include "../libjson/cJSON.h"
+#include <time.h> // for random
+#include <stdlib.h> // for random
 
 //feature_t interframe[FEATURES_COUNT];
 
 cvar_t  *sv_oacsTypesFile;
 cvar_t  *sv_oacsDataFile;
+cvar_t  *sv_oacsEnable;
 
 
 void SV_ExtendedRecordInit(void) {
     // Initialize the features
-    SV_ExtendedRecordInterframeInit();
+    SV_ExtendedRecordInterframeInit(-1);
     
-    // Write the types
+    // Write down the types in the typesfile
     SV_ExtendedRecordWriteStruct();
 }
 
 void SV_ExtendedRecordUpdate(void) {
     // Update the features values
-    //SV_ExtendedRecordInterframeUpdate();
+    SV_ExtendedRecordInterframeUpdate(-1);
     
-    //SV_ExtendedRecordWriteValues();
+    // Write down the values in the datafile
+    SV_ExtendedRecordWriteValues();
 }
 
 // Write the types of the features in a text file, in JSON format
@@ -53,7 +57,7 @@ void SV_ExtendedRecordWriteStruct(void) {
     //char* name = "oacs/type.txt";
     fileHandle_t	file;
 
-    Com_Printf("Saving the record struct in file %s", sv_oacsTypesFile->string);
+    Com_DPrintf("Saving the oacs types in file %s\n", sv_oacsTypesFile->string);
     
     /* Test
     file = FS_FOpenFileWrite( sv_oacsTypesFile->string );
@@ -76,11 +80,11 @@ void SV_ExtendedRecordWriteStruct(void) {
     
     // Prepare the interframe (convert to an array to allow for walking through it)
     // feature_t* interframe_array;
-    // interframe_array = SV_ExtendedRecordInterframeToArray(sv.interframe);
+    // interframe_array = SV_ExtendedRecordInterframeToArray(sv_interframe);
 
-    // Convert the interframe_array into a JSON tree
-    cJSON* root;
-    root = SV_ExtendedRecordFeaturesToJson(sv.interframe, qtrue, qfalse);
+    // Convert the interframe array into a JSON tree
+    cJSON *root;
+    root = SV_ExtendedRecordFeaturesToJson(sv_interframe, qtrue, qfalse, -1);
     
     // Convert the json tree into a text format (unformatted = no line returns)
     char *out;
@@ -89,54 +93,117 @@ void SV_ExtendedRecordWriteStruct(void) {
     // Output into the text file
     file = FS_FOpenFileWrite( sv_oacsTypesFile->string ); // open in write mode
     FS_Write(out, strlen(out), file); free(out); // write the text and free it
+    FS_Flush( file ); // update the content of the file
     FS_FCloseFile( file ); // close the file
 }
 
 // Write the values of the current interframe's features
 void SV_ExtendedRecordWriteValues(void) {
+    fileHandle_t	file;
+    cJSON *root;
+    char *out;
+    int i;
 
-    // Convert the interframe_array into a JSON tree
-    // cJSON* root;
-    // root = SV_ExtendedRecordFeaturesToJson(interframe_array, qfalse, qtrue);
-    
-    // file = FS_FOpenFileAppend( sv_oacsDataFile->string );
+    for (i = 0; i < sv_maxclients->integer; i++)
+	{
+		if (svs.clients[i].state < CS_ACTIVE)
+			continue;
+		
+        // Convert the interframe array into a JSON tree
+        root = SV_ExtendedRecordFeaturesToJson(sv_interframe, qfalse, qtrue, i);
+
+        // Convert the json tree into a text format (unformatted = no line returns)
+        out=cJSON_PrintUnformatted(root); cJSON_Delete(root);
+
+        // Output into the text file (only if there's at least one client connected!)
+        Com_DPrintf("Saving the oacs values in file %s\n", sv_oacsDataFile->string);
+        file = FS_FOpenFileAppend( sv_oacsDataFile->string ); // open in append mode
+        FS_Write(va("%s\n", out), strlen(out)+strlen("\n"), file); free(out); // write the text (with a line return) and free it
+        FS_Flush( file ); // update the content of the file
+        FS_FCloseFile( file ); // close the file
+	}
 }
 
 // Will init the interframe types and values
-void SV_ExtendedRecordInterframeInit(void) {
-    int i;
+// Note: this is also used to reset the values for one specific client at disconnection
+void SV_ExtendedRecordInterframeInit(int client) {
+    int i, startclient, endclient;
 
-    // PlayerID
-    sv.interframe[FEATURE_PLAYERID].key = "playerid";
-    sv.interframe[FEATURE_PLAYERID].type = FEATURE_ID;
+    if (client < 0) {
+        // PlayerID
+        sv_interframe[FEATURE_PLAYERID].key = "playerid";
+        sv_interframe[FEATURE_PLAYERID].type = FEATURE_ID;
+        
+        // Timestamp
+        sv_interframe[FEATURE_TIMESTAMP].key = "timestamp";
+        sv_interframe[FEATURE_TIMESTAMP].type = FEATURE_ID;
+        
+        // Framenumber
+        sv_interframe[FEATURE_FRAMENUMBER].key = "framenumber";
+        sv_interframe[FEATURE_FRAMENUMBER].type = FEATURE_ID;
+        
+        // Frags in a row (accumulator)
+        sv_interframe[FEATURE_FRAGSINAROW].key = "fragsinarow";
+        sv_interframe[FEATURE_FRAGSINAROW].type = FEATURE_HUMAN;
+        
+        // Armor
+        sv_interframe[FEATURE_ARMOR].key = "armor";
+        sv_interframe[FEATURE_ARMOR].type = FEATURE_GAMESPECIFIC;
+        
+        // Label
+        sv_interframe[LABEL_CHEATER].key = "cheater";
+        sv_interframe[LABEL_CHEATER].type = LABEL_CHEATER;
+    }
     
-    // Timestamp
-    sv.interframe[FEATURE_TIMESTAMP].key = "timestamp";
-    sv.interframe[FEATURE_TIMESTAMP].type = FEATURE_ID;
-    
-    // Framenumber
-    sv.interframe[FEATURE_FRAMENUMBER].key = "framenumber";
-    sv.interframe[FEATURE_FRAMENUMBER].type = FEATURE_ID;
-    
-    // Frags in a row (accumulator)
-    sv.interframe[FEATURE_FRAGSINAROW].key = "fragsinarow";
-    sv.interframe[FEATURE_FRAGSINAROW].type = FEATURE_HUMAN;
-    
-    // Armor
-    sv.interframe[FEATURE_ARMOR].key = "armor";
-    sv.interframe[FEATURE_ARMOR].type = FEATURE_GAMESPECIFIC;
-    
-    // Now we will initialize the value for every feature and every client (else we may get a weird random value from an old memory zone that was not cleaned up)
-    for (i=0;i<MAX_CLIENTS;i++) {
-        sv.interframe[FEATURE_PLAYERID].value[i] = 0;
-        sv.interframe[FEATURE_TIMESTAMP].value[i] = 0;
-        sv.interframe[FEATURE_FRAMENUMBER].value[i] = 0;
-        sv.interframe[FEATURE_FRAGSINAROW].value[i] = 0;
-        sv.interframe[FEATURE_ARMOR].value[i] = 0;
+    // If a client id is supplied, we will only reset values for this client
+    if (client >= 0) {
+        startclient = client;
+        endclient = client + 1;
+    // Else we reset for every client
+    } else {
+        startclient = 0;
+        endclient = MAX_CLIENTS;
+    }
+
+    // Now we will initialize the value for every feature and every client or just one client if a clientid is supplied (else we may get a weird random value from an old memory zone that was not cleaned up)
+    for (i=startclient;i<endclient;i++) {
+        sv_interframe[FEATURE_PLAYERID].value[i] = 0;
+        sv_interframe[FEATURE_TIMESTAMP].value[i] = 0;
+        sv_interframe[FEATURE_FRAMENUMBER].value[i] = 0;
+        sv_interframe[FEATURE_FRAGSINAROW].value[i] = 0;
+        sv_interframe[FEATURE_ARMOR].value[i] = 0;
+        sv_interframe[LABEL_CHEATER].value[i] = 0;
     }
 }
 
-void SV_ExtendedRecordInterframeUpdate(void) {
+void SV_ExtendedRecordInterframeUpdate(int client) {
+    int i, startclient, endclient;
+
+    // If a client id is supplied, we will only reset values for this client
+    if (client >= 0) {
+        startclient = client;
+        endclient = client + 1;
+    // Else we reset for every client
+    } else {
+        startclient = 0;
+        endclient = sv_maxclients->integer;
+    }
+    
+    // TEST: initializing random values
+    srand(time(NULL));
+
+    // Now we will initialize the value for every feature and every client or just one client if a clientid is supplied (else we may get a weird random value from an old memory zone that was not cleaned up)
+    for (i=startclient;i<endclient;i++) {
+        if (svs.clients[i].state < CS_ACTIVE)
+			continue;
+
+        sv_interframe[FEATURE_PLAYERID].value[i] = rand() % 100;
+        sv_interframe[FEATURE_TIMESTAMP].value[i] = rand() % 100;
+        sv_interframe[FEATURE_FRAMENUMBER].value[i] = rand() % 100;
+        sv_interframe[FEATURE_FRAGSINAROW].value[i] = rand() % 100;
+        sv_interframe[FEATURE_ARMOR].value[i] = rand() % 100;
+        sv_interframe[LABEL_CHEATER].value[i] = rand() % 2;
+    }
 
 }
 
@@ -148,7 +215,7 @@ feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe) {
 */
 
 // Loop through an array of feature_t and convert to JSON
-cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues) {
+cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues, int client) {
     int i;
     cJSON *root, *feature;
     
@@ -159,7 +226,10 @@ cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes
         cJSON_AddItemToObject(root, interframe[i].key, feature=cJSON_CreateObject());
 		//cJSON_AddItemToArray(root,feature=cJSON_CreateObject());
 		cJSON_AddStringToObject(feature, "key", interframe[i].key);
-        cJSON_AddNumberToObject(feature, "type", interframe[i].type);
+        if (savetypes == qtrue)
+            cJSON_AddNumberToObject(feature, "type", interframe[i].type);
+        if (savevalues == qtrue && client >= 0)
+            cJSON_AddNumberToObject(feature, "value", interframe[i].value[client]);
 	}
     
     return root;

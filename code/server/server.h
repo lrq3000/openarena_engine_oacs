@@ -105,9 +105,6 @@ typedef struct {
 	// serverside demo recording - previous frame for delta compression
 	sharedEntity_t	demoEntities[MAX_GENTITIES];
 	playerState_t	demoPlayerStates[MAX_CLIENTS];
-    
-    // oacs extended recording variables
-    feature_t interframe[FEATURES_COUNT];
 } server_t;
 
 

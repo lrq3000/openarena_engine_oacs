@@ -29,7 +29,8 @@ typedef enum {
 	FEATURE_ID,			// Identifier features
 	FEATURE_HUMAN,			// Human-specific features
 	FEATURE_GAMESPECIFIC,				// Game-specific features (game rules)
-    FEATURE_PHYSICS                     // Physics limitation features (to avoid!!!)
+    FEATURE_PHYSICS,                     // Physics limitation features (to avoid!!!)
+    FEATURE_LABEL // Not a feature, this is a label for the data
 } featureType_t;
 
 // Structure of one feature
@@ -57,6 +58,7 @@ typedef enum {
     FEATURE_FRAMENUMBER,
     FEATURE_FRAGSINAROW,
 	FEATURE_ARMOR,
+    LABEL_CHEATER, // Not a feature: this is used as the label Y for the features. Usually, this will be set at 0 for everyone, and set to 1 only by using the /cheater command for development purposes or to generate a dataset when you are using a cheating system.
     FEATURES_COUNT // Important: always place this at the very end! This is used to count the total number of features
 } interframeIndex_t;
 
@@ -66,14 +68,17 @@ typedef enum {
 // Cvars
 extern cvar_t  *sv_oacsTypesFile;
 extern cvar_t  *sv_oacsDataFile;
+extern cvar_t  *sv_oacsEnable;
+// oacs extended recording variables
+feature_t sv_interframe[FEATURES_COUNT];
 
 // Functions
 void SV_ExtendedRecordInit(void);
 void SV_ExtendedRecordUpdate(void);
 void SV_ExtendedRecordWriteStruct(void);
 void SV_ExtendedRecordWriteValues(void);
-void SV_ExtendedRecordInterframeInit(void);
-void SV_ExtendedRecordInterframeUpdate(void);
+void SV_ExtendedRecordInterframeInit(int client);
+void SV_ExtendedRecordInterframeUpdate(int client);
 //feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe);
-cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues);
+cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues, int client);
 

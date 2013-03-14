@@ -1162,6 +1162,9 @@ void SV_Frame( int msec ) {
 			SV_DemoRestartPlayback();
 		else if (sv.demoState == DS_PLAYBACK) // Play the next demo frame
 			SV_DemoReadFrame();
+        
+        if (sv_oacsEnable->integer == 1)
+            SV_ExtendedRecordUpdate();
 	}
 
 	if ( com_speeds->integer ) {
