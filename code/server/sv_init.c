@@ -913,6 +913,9 @@ void SV_Shutdown( char *finalmsg ) {
 	if (sv.demoState == DS_PLAYBACK)
 		SV_DemoStopPlayback();
 
+    // OACS: commit any remaining interframe
+    SV_ExtendedRecordShutdown();
+
 	// free current level
 	SV_ClearServer();
 

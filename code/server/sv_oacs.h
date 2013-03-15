@@ -24,7 +24,24 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../libjson/cJSON.h"
 
+// List all indexes for any feature.
+// This is necessary in order to allow for a quick access to a feature (for updating purposes)
+// You can add here your own features
+typedef enum {
+    FEATURE_PLAYERID,
+    FEATURE_TIMESTAMP,
+    FEATURE_FRAMENUMBER,
+    FEATURE_FRAGSINAROW,
+	FEATURE_ARMOR,
+
+    // Do not modify the rest of the features below
+    FEATURE_FRAMEREPEAT, // Do not modify: this frame counts the number of times an interframe is repeated. This feature is necessary to keep storage space.
+    LABEL_CHEATER, // Not a feature: this is used as the label Y for the features. Usually, this will be set at 0 for everyone, and set to 1 only by using the /cheater command for development purposes or to generate a dataset when you are using a cheating system.
+    FEATURES_COUNT // Important: always place this at the very end! This is used to count the total number of features
+} interframeIndex_t;
+
 // List of features types
+// You should not modify this unless you know what you do (you'll have to code a new input parser inside OACS)
 typedef enum {
 	FEATURE_ID,			// Identifier features
 	FEATURE_HUMAN,			// Human-specific features
@@ -38,6 +55,7 @@ typedef struct feature_s
 {
     char *key;
 	featureType_t type;
+    qboolean modifier; // if true, change the modify flag (means that this feature modifies meaningfully the content of this interframe, and thus write a new separate interframe). Else if false, it will concatenate consequent interframes into only one but increments FEATURE_FRAMEREPEAT (this avoids storing multiple same frames taking up a lot of storage space uselessly).
     double value[MAX_CLIENTS]; // one value for each player (the key and type do not change, they are the same for every player. This saves some memory space.)
 } feature_t;
 
@@ -50,18 +68,6 @@ typedef struct interframe_s
 } interframe_t;
 */
 
-// List all indexes for any feature.
-// This is necessary in order to allow for a quick access to a feature (for updating purposes)
-typedef enum {
-    FEATURE_PLAYERID,
-    FEATURE_TIMESTAMP,
-    FEATURE_FRAMENUMBER,
-    FEATURE_FRAGSINAROW,
-	FEATURE_ARMOR,
-    LABEL_CHEATER, // Not a feature: this is used as the label Y for the features. Usually, this will be set at 0 for everyone, and set to 1 only by using the /cheater command for development purposes or to generate a dataset when you are using a cheating system.
-    FEATURES_COUNT // Important: always place this at the very end! This is used to count the total number of features
-} interframeIndex_t;
-
 // Declare the sv.interframe global variable, which will contain the array of all features
 //extern feature_t interframe[FEATURES_COUNT];
 
@@ -71,14 +77,17 @@ extern cvar_t  *sv_oacsDataFile;
 extern cvar_t  *sv_oacsEnable;
 // oacs extended recording variables
 feature_t sv_interframe[FEATURES_COUNT];
+feature_t sv_previnterframe[FEATURES_COUNT]; // previous interframe
+qboolean sv_interframeModified[MAX_CLIENTS]; // was the current interframe modified from the previous one?
 
 // Functions
 void SV_ExtendedRecordInit(void);
 void SV_ExtendedRecordUpdate(void);
+void SV_ExtendedRecordShutdown(void);
 void SV_ExtendedRecordWriteStruct(void);
-void SV_ExtendedRecordWriteValues(void);
+void SV_ExtendedRecordWriteValues(int client);
 void SV_ExtendedRecordInterframeInit(int client);
 void SV_ExtendedRecordInterframeUpdate(int client);
 //feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe);
 cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues, int client);
-
+void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, int client);
