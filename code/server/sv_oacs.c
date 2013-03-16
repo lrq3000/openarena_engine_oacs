@@ -221,6 +221,10 @@ void SV_ExtendedRecordInterframeInit(int client) {
         for (j=0;j<FEATURES_COUNT;j++) {
             sv_interframe[j].value[i] = 0;
         }
+        
+        // Hack to avoid the first interframe (which is null) from being committed (we don't want the first interframe to be saved, since it contains only null value - the update func will take care of fetching correct values)
+        sv_interframeModified[i] = qtrue;
+        
         // Specific default values: set here the default values you want for a feature if you want it to be different than 0, eg:
         // sv_interframe[FEATURE_PLAYERID].value[i] = 0;
         sv_interframe[FEATURE_SVTIME].value[i] = sv.time;
