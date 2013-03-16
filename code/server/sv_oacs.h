@@ -85,6 +85,7 @@ qboolean sv_interframeModified[MAX_CLIENTS]; // was the current interframe modif
 void SV_ExtendedRecordInit(void);
 void SV_ExtendedRecordUpdate(void);
 void SV_ExtendedRecordShutdown(void);
+void SV_ExtendedRecordDropClient(int client);
 void SV_ExtendedRecordWriteStruct(void);
 void SV_ExtendedRecordWriteValues(int client);
 void SV_ExtendedRecordInterframeInit(int client);

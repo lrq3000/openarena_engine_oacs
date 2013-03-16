@@ -65,6 +65,14 @@ void SV_ExtendedRecordShutdown(void) {
     SV_ExtendedRecordWriteValues(-1);
 }
 
+// When a client gets disconnected (either willingly or unwillingly)
+void SV_ExtendedRecordDropClient(int client) {
+    // Commit the last interframe for that client before he gets totally disconnected
+    SV_ExtendedRecordWriteValues(client);
+    // Reinit the values for that client
+    SV_ExtendedRecordInterframeInit(client);
+}
+
 // Write the types of the features in a text file, in JSON format
 // Note: this function only needs to be called once, preferably at engine startup (Com_Init or SV_Init)
 void SV_ExtendedRecordWriteStruct(void) {
@@ -237,8 +245,13 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
 
     // Now we will initialize the value for every feature and every client or just one client if a clientid is supplied (else we may get a weird random value from an old memory zone that was not cleaned up)
     for (i=startclient;i<endclient;i++) {
-        if (svs.clients[i].state < CS_ACTIVE)
+        // If the client was disconnected, and not already reinitialized, we commit the last interframe and reset
+        if (svs.clients[i].state == CS_ZOMBIE && sv_interframe[FEATURE_PLAYERID].value[i] != 0) {
+            SV_ExtendedRecordDropClient(i);
+        // Else if the client is not already fully connected in the game, we just skip this client
+        } else if (svs.clients[i].state < CS_ACTIVE) {
 			continue;
+        }
 
         // Updating values: you can add here your code to update a feature at the end of every frame and for every player
         SV_ExtendedRecordSetFeatureValue(FEATURE_PLAYERID, i, i);

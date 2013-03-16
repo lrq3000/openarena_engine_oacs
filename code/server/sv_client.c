@@ -663,6 +663,9 @@ void SV_DropClient( client_t *drop, const char *reason ) {
 
 	// nuke user info
 	SV_SetUserinfo( drop - svs.clients, "" );
+    
+    // OACS: Commit then reset the last interframe for this client
+    SV_ExtendedRecordDropClient( drop - svs.clients );
 
 	if ( isBot ) {
 		// bots shouldn't go zombie, as there's no real net connection.
