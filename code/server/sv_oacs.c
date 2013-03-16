@@ -166,10 +166,15 @@ void SV_ExtendedRecordInterframeInit(int client) {
         sv_interframe[FEATURE_TIMESTAMP].type = FEATURE_ID;
         sv_interframe[FEATURE_TIMESTAMP].modifier = qfalse;
         
-        // Framenumber
-        sv_interframe[FEATURE_FRAMENUMBER].key = "framenumber";
-        sv_interframe[FEATURE_FRAMENUMBER].type = FEATURE_ID;
-        sv_interframe[FEATURE_FRAMENUMBER].modifier = qfalse;
+        // SVTime (server time, serves as frame number)
+        sv_interframe[FEATURE_SVTIME].key = "svtime";
+        sv_interframe[FEATURE_SVTIME].type = FEATURE_ID;
+        sv_interframe[FEATURE_SVTIME].modifier = qfalse;
+        
+        // Reaction time (sv_time delta, used to compute the time elapsed between the last action and the current action)
+        sv_interframe[FEATURE_REACTIONTIME].key = "reactiontime";
+        sv_interframe[FEATURE_REACTIONTIME].type = FEATURE_HUMAN;
+        sv_interframe[FEATURE_REACTIONTIME].modifier = qfalse;
         
         // Frags in a row (accumulator)
         sv_interframe[FEATURE_FRAGSINAROW].key = "fragsinarow";
@@ -210,6 +215,7 @@ void SV_ExtendedRecordInterframeInit(int client) {
         }
         // Specific default values: set here the default values you want for a feature if you want it to be different than 0, eg:
         // sv_interframe[FEATURE_PLAYERID].value[i] = 0;
+        sv_interframe[FEATURE_SVTIME].value[i] = sv.time;
     }
 }
 
@@ -236,12 +242,23 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
 
         // Updating values: you can add here your code to update a feature at the end of every frame and for every player
         SV_ExtendedRecordSetFeatureValue(FEATURE_PLAYERID, i, i);
-        SV_ExtendedRecordSetFeatureValue(FEATURE_TIMESTAMP, rand() % 100, i);
-        // Update frame number (sv.time) only if we have committed the last frame, because we want the difference (the delta) between the last move and the new one
-        if (sv_interframeModified[i] == qtrue) SV_ExtendedRecordSetFeatureValue(FEATURE_FRAMENUMBER, sv.time - sv_interframe[FEATURE_FRAMENUMBER].value[i], i);
+        SV_ExtendedRecordSetFeatureValue(FEATURE_TIMESTAMP, time(NULL), i);
         SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, 0, i);
         SV_ExtendedRecordSetFeatureValue(FEATURE_ARMOR, 0, i);
         SV_ExtendedRecordSetFeatureValue(LABEL_CHEATER, rand() % 2, i);
+        
+        // Update delta features (values that need to be computed only in difference with the previous interframe when there's a change)
+        // Note: you should only update those features at the end, because you WANT to make sure that any change to any modifier feature already happened, so that we know for sure that the interframe will be committed or not.
+
+        if (sv_interframeModified[i] == qtrue) {
+            // Update reaction time (sv.time delta) only if we have committed the last frame, because we want the difference (the delta) between the last move and the new one
+            SV_ExtendedRecordSetFeatureValue(FEATURE_REACTIONTIME, sv.time - sv_interframe[FEATURE_SVTIME].value[i], i);
+        }
+        
+        // We have to update SVTIME only after reaction time, and we also update it if it doesn't have any value (because we don't want that the first interframe of a player is set to the start of the server/map!)
+        if (sv_interframeModified[i] == qtrue || sv_interframe[FEATURE_SVTIME].value[i] == 0)
+            SV_ExtendedRecordSetFeatureValue(FEATURE_SVTIME, sv.time, i);
+            
         
         // Check if the interframe is repeated or if it has changed since the previous one
         if (sv_interframeModified[i] == qtrue) { // it changed, and the previous one was already committed, so we just have to reset FRAMEREPEAT and the modified flag

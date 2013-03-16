@@ -30,7 +30,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 typedef enum {
     FEATURE_PLAYERID,
     FEATURE_TIMESTAMP,
-    FEATURE_FRAMENUMBER,
+    FEATURE_SVTIME,
+    FEATURE_REACTIONTIME, // this is sv_time delta (difference between the last interframe and this one)
     FEATURE_FRAGSINAROW,
 	FEATURE_ARMOR,
 
