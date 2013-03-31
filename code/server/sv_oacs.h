@@ -22,7 +22,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 // sv_oacs.h
 
-#include "../libjson/cJSON.h"
+//#include "../libjson/cJSON.h"
+
+#define MAX_STRING_CSV 2048
 
 // List all indexes for any feature.
 // This is necessary in order to allow for a quick access to a feature (for updating purposes)
@@ -91,5 +93,10 @@ void SV_ExtendedRecordWriteValues(int client);
 void SV_ExtendedRecordInterframeInit(int client);
 void SV_ExtendedRecordInterframeUpdate(int client);
 //feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe);
-cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues, int client);
+//cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues, int client);
+//void SV_ExtendedRecordWriteStructJson(void);
+//void SV_ExtendedRecordWriteValuesJson(int client);
+char *SV_ExtendedRecordFeaturesToCSV(char *csv_string, int max_string_size, feature_t *interframe, int savewhat, int client);
 void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, int client);
+//char* strncat_lin( char* dest, char* src, size_t n );
+qboolean FS_IsFileEmpty(char* filename);

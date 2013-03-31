@@ -56,7 +56,7 @@ void SV_ExtendedRecordUpdate(void) {
     SV_ExtendedRecordInterframeUpdate(-1);
     
     // Write down the values in the datafile
-    //SV_ExtendedRecordWriteValues(-1);
+    //SV_ExtendedRecordWriteValues(-1); // this will be automatically called when an interframe needs to be committed
 }
 
 // Called at engine shutdown
@@ -73,30 +73,95 @@ void SV_ExtendedRecordDropClient(int client) {
     SV_ExtendedRecordInterframeInit(client);
 }
 
-// Write the types of the features in a text file, in JSON format
+// Write the types of the features in a text file, in CSV format
 // Note: this function only needs to be called once, preferably at engine startup (Com_Init or SV_Init)
 void SV_ExtendedRecordWriteStruct(void) {
+    fileHandle_t	file;
+    char outheader[MAX_STRING_CSV];
+    char out[MAX_STRING_CSV];
+
+    Com_DPrintf("OACS: Saving the oacs types in file %s\n", sv_oacsTypesFile->string);
+    
+    SV_ExtendedRecordFeaturesToCSV(outheader, MAX_STRING_CSV, sv_interframe, 0, -1);
+    SV_ExtendedRecordFeaturesToCSV(out, MAX_STRING_CSV, sv_interframe, 1, -1);
+    
+    // Output into the text file
+    file = FS_FOpenFileWrite( sv_oacsTypesFile->string ); // open in write mode
+    FS_Write(va("%s\n%s", outheader, out), strlen(outheader)+strlen("\n")+strlen(out), file); //free(out); // write the text and free it
+    FS_Flush( file ); // update the content of the file
+    FS_FCloseFile( file ); // close the file
+}
+
+// Write the values of the current interframe's features in CSV format
+void SV_ExtendedRecordWriteValues(int client) {
+    fileHandle_t	file;
+    char out[MAX_STRING_CSV];
+    int i, startclient, endclient;
+
+    // If a client id is supplied, we will only write the JSON interframe for this client
+    if (client >= 0) {
+        startclient = client;
+        endclient = client + 1;
+    // Else for every client
+    } else {
+        startclient = 0;
+        endclient = sv_maxclients->integer;
+    }
+    
+    // Open the data file
+    Com_DPrintf("OACS: Saving the oacs values in file %s\n", sv_oacsDataFile->string);
+    file = FS_FOpenFileAppend( sv_oacsDataFile->string ); // open in append mode
+
+    // If there is no data file or it is empty, we first output the headers (features keys/names)
+    if ( FS_FileExists( sv_oacsDataFile->string ) == qfalse || (FS_IsFileEmpty( sv_oacsDataFile->string ) == qtrue) ) {
+        char outheader[MAX_STRING_CSV];
+        
+        // Get the CSV string from the features keys
+        SV_ExtendedRecordFeaturesToCSV(outheader, MAX_STRING_CSV, sv_interframe, 0, -1);
+
+        // Output the headers into the text file (only if there's at least one client connected!)
+        FS_Write(va("%s\n", outheader), strlen(outheader)+strlen("\n"), file); // write the text (with a line return)
+        FS_Flush( file ); // update the content of the file
+    }
+
+    for (i=startclient;i<endclient;i++) {
+		if (svs.clients[i].state < CS_ACTIVE)
+			continue;
+
+        SV_ExtendedRecordFeaturesToCSV(out, MAX_STRING_CSV, sv_interframe, 2, i);
+
+        // Output into the text file (only if there's at least one client connected!)
+        FS_Write(va("%s\n", out), strlen(out)+strlen("\n"), file); //free(out); // write the text (with a line return) and free it
+        FS_Flush( file ); // update the content of the file
+	}
+    
+    // Close the data file and free variables
+    FS_FCloseFile( file ); // close the file
+    // No variable to free, there's no malloc'd variable
+}
+
+/*
+// Write the types of the features in a text file, in JSON format
+// Note: this function only needs to be called once, preferably at engine startup (Com_Init or SV_Init)
+void SV_ExtendedRecordWriteStructJson(void) {
     //char* name = "oacs/type.txt";
     fileHandle_t	file;
 
     Com_DPrintf("OACS: Saving the oacs types in file %s\n", sv_oacsTypesFile->string);
     
-    /* Test
-    file = FS_FOpenFileWrite( sv_oacsTypesFile->string );
-    
-    cJSON *root,*fmt;char *out;
-
-	root=cJSON_CreateObject();	
-	cJSON_AddItemToObject(root, "name", cJSON_CreateString("Jack (\"Bee\") Nimble"));
-	cJSON_AddItemToObject(root, "format", fmt=cJSON_CreateObject());
-	cJSON_AddStringToObject(fmt,"type",		"rect");
-	cJSON_AddNumberToObject(fmt,"width",		1920);
-	cJSON_AddNumberToObject(fmt,"height",		1080);
-	cJSON_AddFalseToObject (fmt,"interlace");
-	cJSON_AddNumberToObject(fmt,"frame rate",	24);
-	
-	out=cJSON_PrintUnformatted(root);	cJSON_Delete(root); FS_Write(out, strlen(out), file); free(out);
-    */
+    // Test
+    //file = FS_FOpenFileWrite( sv_oacsTypesFile->string );
+     //cJSON *root,*fmt;char *out;
+	//root=cJSON_CreateObject();	
+	//cJSON_AddItemToObject(root, "name", cJSON_CreateString("Jack (\"Bee\") Nimble"));
+	//cJSON_AddItemToObject(root, "format", fmt=cJSON_CreateObject());
+	//cJSON_AddStringToObject(fmt,"type",		"rect");
+	//cJSON_AddNumberToObject(fmt,"width",		1920);
+	//cJSON_AddNumberToObject(fmt,"height",		1080);
+	//cJSON_AddFalseToObject (fmt,"interlace");
+	//cJSON_AddNumberToObject(fmt,"frame rate",	24);
+	//out=cJSON_PrintUnformatted(root);	cJSON_Delete(root); FS_Write(out, strlen(out), file); free(out);
+    // End Test
     
     
     
@@ -119,8 +184,8 @@ void SV_ExtendedRecordWriteStruct(void) {
     FS_FCloseFile( file ); // close the file
 }
 
-// Write the values of the current interframe's features
-void SV_ExtendedRecordWriteValues(int client) {
+// Write the values of the current interframe's features in JSON
+void SV_ExtendedRecordWriteValuesJson(int client) {
     fileHandle_t	file;
     cJSON *root;
     char *out;
@@ -154,6 +219,7 @@ void SV_ExtendedRecordWriteValues(int client) {
         FS_FCloseFile( file ); // close the file
 	}
 }
+*/
 
 // Will init the interframe types and values
 // Note: this is also used to reset the values for one specific client at disconnection
@@ -305,6 +371,7 @@ feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe) {
 }
 */
 
+/*
 // Loop through an array of feature_t and convert to JSON
 cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues, int client) {
     int i;
@@ -325,6 +392,40 @@ cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes
     
     return root;
 }
+*/
+
+// Loop through an array of feature_t and convert to a CSV row
+char *SV_ExtendedRecordFeaturesToCSV(char *csv_string, int max_string_size, feature_t *interframe, int savewhat, int client) {
+    int i;
+    int length = 0; // willl store the current cursor position fot the end of the string, so that we can quickly append without doing a strlen() everytime which would be O(n^2) instead of O(n)
+
+    //root=cJSON_CreateObject();
+	for (i=0;i<FEATURES_COUNT;i++)
+	{
+        // Add CSV separator between fields
+        if (i > 0) {
+            length += snprintf(csv_string+length, max_string_size, "%s", ",");
+        }
+        
+        // Save the fields
+        if (savewhat == 0) { // type 0: save the key (name strings)
+            length += snprintf(csv_string+length, max_string_size, "%s", interframe[i].key);
+        } else if (savewhat == 1) { // type 1: save the type (int coming from an enum)
+            //s = strncat_lin( s, va("%i", interframe[i].type), (sizeof(csv_string) - sizeof(s)) );
+            length += snprintf(csv_string+length, max_string_size, "%i", interframe[i].type);
+        } else { // type 2: save the values (the data type depends on the content of the field)
+            // If possible, print the value as an int, else as a float
+            if ((float)(long)interframe[i].value[i] == interframe[i].value[i]) {
+                length += snprintf(csv_string+length, max_string_size, "%ld", (long)interframe[i].value[i]);
+            } else {
+                length += snprintf(csv_string+length, max_string_size, "%f", interframe[i].value[i]);
+            }
+        }
+
+	}
+    
+    return csv_string;
+}
 
 void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, int client) {
     // If the value has changed, we do something, else we just keep it like that
@@ -340,3 +441,44 @@ void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, i
     }
 }
 
+/* Append a string to another in linear time and safely with a limit n of maximum size - DOESN'T WORK
+char* strncat_lin( char* dest, char* src, size_t n ) {
+    Com_DPrintf("OACS Test: dest: %s src: %s n: %i\n", dest, src, n);
+     while (*dest != '\0') {
+        dest++; n--;
+     }
+     // Overwrite the null byte if present
+     if( dest-1 == '\0') {
+        dest--; n++;
+     }
+     while ( n-- > 0 && ((*dest++ = *src++) != '\0' ) );
+     if (*dest != '\0') *dest = '\0';
+     Com_DPrintf("OACS Test2: dest: %s src: %s\n", dest, src);
+     return --dest;
+}
+*/
+
+// Check if a file is empty
+qboolean FS_IsFileEmpty(char* filename) {
+    qboolean result;
+    fileHandle_t file;
+    char buf[1];
+
+    // Open the file (we need to use ioquake3 functions because it will build the full path relative to homepath and gamedir, see FS_BuildOSPath)
+    FS_FOpenFileRead(filename, &file, qfalse); // the length returned by FS_FOpenFileRead is equal to 1 when the file has no content or when it has 1 character, so this length can't be used to know if the file is empty or not
+
+    // Get the first character from the file, but what we are interested in is the number of characters read, which we store in the var c
+    int c = FS_Read(buf, 1, file);
+
+    // If the number of characters that were read is 0, then the file is empty
+    if (c == 0) {
+        result = qtrue;
+    // Else if we have read 1 character, then the file is not empty
+    } else {
+        result = qfalse;
+    }
+    // Close the file
+    FS_FCloseFile(file);
+    // Return the result
+    return result;
+}
