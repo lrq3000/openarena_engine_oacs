@@ -414,11 +414,11 @@ char *SV_ExtendedRecordFeaturesToCSV(char *csv_string, int max_string_size, feat
             //s = strncat_lin( s, va("%i", interframe[i].type), (sizeof(csv_string) - sizeof(s)) );
             length += snprintf(csv_string+length, max_string_size, "%i", interframe[i].type);
         } else { // type 2: save the values (the data type depends on the content of the field)
-            // If possible, print the value as an int, else as a float
-            if ((float)(long)interframe[i].value[i] == interframe[i].value[i]) {
-                length += snprintf(csv_string+length, max_string_size, "%ld", (long)interframe[i].value[i]);
+            // If possible, print the value as a long int, else as a float
+            if ((float)(long)interframe[i].value[client] == interframe[i].value[client]) {
+                length += snprintf(csv_string+length, max_string_size, "%ld", (long)interframe[i].value[client]);
             } else {
-                length += snprintf(csv_string+length, max_string_size, "%f", interframe[i].value[i]);
+                length += snprintf(csv_string+length, max_string_size, "%f", interframe[i].value[client]);
             }
         }
 
@@ -427,6 +427,8 @@ char *SV_ExtendedRecordFeaturesToCSV(char *csv_string, int max_string_size, feat
     return csv_string;
 }
 
+// Set the value of a feature in the current interframe for a given player, and commit the previous interframe for this client if the feature is a modifier
+// Note: you should use this function whenever you want to modify the value of a feature for a client, because it will take care of writing down the interframes values whenever needed (else you may lose the data of your interframes!), because the function to commit the features values is only called from here.
 void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, int client) {
     // If the value has changed, we do something, else we just keep it like that
     if (sv_interframe[feature].value[client] != value) {
@@ -434,9 +436,11 @@ void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, i
         if ( sv_interframe[feature].modifier == qtrue && sv_interframeModified[client] != qtrue ) {
             // Set the modified flag to true
             sv_interframeModified[client] = qtrue;
-            // Flush (write) down the previous interframe since it will be modified
+            
+            // Flush/Commit/Write down the previous interframe since it will be modified
             SV_ExtendedRecordWriteValues(client);
         }
+        // Modify the value (after having committed the previous interframe if this feature is a modifier)
         sv_interframe[feature].value[client] = value;
     }
 }
