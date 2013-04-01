@@ -262,12 +262,12 @@ void SV_ExtendedRecordInterframeInit(int client) {
         
         // Frame Repeat
         sv_interframe[FEATURE_FRAMEREPEAT].key = "framerepeat";
-        sv_interframe[FEATURE_FRAMEREPEAT].type = FEATURE_FRAMEREPEAT;
+        sv_interframe[FEATURE_FRAMEREPEAT].type = FEATURE_METADATA;
         sv_interframe[FEATURE_FRAMEREPEAT].modifier = qfalse;
         
         // Label
         sv_interframe[LABEL_CHEATER].key = "cheater";
-        sv_interframe[LABEL_CHEATER].type = LABEL_CHEATER;
+        sv_interframe[LABEL_CHEATER].type = FEATURE_LABEL;
         sv_interframe[LABEL_CHEATER].modifier = qtrue;
     }
     

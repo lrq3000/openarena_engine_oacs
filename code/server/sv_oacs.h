@@ -50,6 +50,7 @@ typedef enum {
 	FEATURE_HUMAN,			// Human-specific features
 	FEATURE_GAMESPECIFIC,				// Game-specific features (game rules)
     FEATURE_PHYSICS,                     // Physics limitation features (to avoid!!!)
+    FEATURE_METADATA,           // Feature containing meta data about other features (like the framerepeat, which should be used as a ponderation factor for all the others features)
     FEATURE_LABEL // Not a feature, this is a label for the data
 } featureType_t;
 
