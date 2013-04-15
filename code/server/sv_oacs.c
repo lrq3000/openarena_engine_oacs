@@ -288,7 +288,7 @@ void SV_ExtendedRecordInterframeInit(int client) {
     for (i=startclient;i<endclient;i++) {
         // Generic features reset, setting 0 as the default (you can set a specific default value for a specific feature just after the loop
         for (j=0;j<FEATURES_COUNT;j++) {
-            sv_interframe[j].value[i] = 0;
+            sv_interframe[j].value[i] = featureDefaultValue; // set the default value for features (preferable NAN - Not A Number)
         }
         
         // Hack to avoid the first interframe (which is null) from being committed (we don't want the first interframe to be saved, since it contains only null value - the update func will take care of fetching correct values)

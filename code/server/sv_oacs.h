@@ -26,6 +26,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MAX_STRING_CSV 2048
 
+#ifdef NAN
+#define featureDefaultValue NAN
+#else
+#define featureDefaultValue 0
+#endif
+
 // List all indexes for any feature.
 // This is necessary in order to allow for a quick access to a feature (for updating purposes)
 // You can add here your own features
