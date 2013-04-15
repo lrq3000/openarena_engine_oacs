@@ -44,6 +44,9 @@ cvar_t  *sv_oacsDataFile;
 cvar_t  *sv_oacsEnable;
 
 void SV_ExtendedRecordInit(void) {
+    //Initializing the random seed for the random values generator
+    srand(time(NULL));
+
     // Initialize the features
     SV_ExtendedRecordInterframeInit(-1);
     
@@ -291,8 +294,9 @@ void SV_ExtendedRecordInterframeInit(int client) {
         // Hack to avoid the first interframe (which is null) from being committed (we don't want the first interframe to be saved, since it contains only null value - the update func will take care of fetching correct values)
         sv_interframeModified[i] = qtrue;
         
-        // Specific default values: set here the default values you want for a feature if you want it to be different than 0, eg:
-        // sv_interframe[FEATURE_PLAYERID].value[i] = 0;
+        // Specific default values: set here the default values you want for a feature if you want it to be different than 0 or NaN
+        //char tmp[MAX_STRING_CHARS] = ""; snprintf(tmp, MAX_STRING_CHARS, "%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL));
+        sv_interframe[FEATURE_PLAYERID].value[i] = atof( va("%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL)) ); // TODO: use a real UUID/GUID here (for the moment we simply use the timestamp in seconds + a random number, this should be enough for now to ensure the uniqueness of all the players) - do NOT use ioquake3 GUID since it can be spoofed (there's no centralized authorization system!)
         sv_interframe[FEATURE_SVTIME].value[i] = sv.time;
     }
 }
@@ -310,9 +314,6 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
         endclient = sv_maxclients->integer;
     }
 
-    // TEST: initializing random values
-    srand(time(NULL));
-
     // Now we will initialize the value for every feature and every client or just one client if a clientid is supplied (else we may get a weird random value from an old memory zone that was not cleaned up)
     for (i=startclient;i<endclient;i++) {
         // If the client was disconnected, and not already reinitialized, we commit the last interframe and reset
@@ -324,7 +325,7 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
         }
 
         // Updating values: you can add here your code to update a feature at the end of every frame and for every player
-        SV_ExtendedRecordSetFeatureValue(FEATURE_PLAYERID, i, i);
+        //SV_ExtendedRecordSetFeatureValue(FEATURE_PLAYERID, i, i);
         SV_ExtendedRecordSetFeatureValue(FEATURE_TIMESTAMP, time(NULL), i);
         SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, 0, i);
         SV_ExtendedRecordSetFeatureValue(FEATURE_ARMOR, 0, i);
@@ -415,8 +416,8 @@ char *SV_ExtendedRecordFeaturesToCSV(char *csv_string, int max_string_size, feat
             length += snprintf(csv_string+length, max_string_size, "%i", interframe[i].type);
         } else { // type 2: save the values (the data type depends on the content of the field)
             // If possible, print the value as a long int, else as a float
-            if ((float)(long)interframe[i].value[client] == interframe[i].value[client]) {
-                length += snprintf(csv_string+length, max_string_size, "%ld", (long)interframe[i].value[client]);
+            if (round(interframe[i].value[client]) == interframe[i].value[client]) {
+                length += snprintf(csv_string+length, max_string_size, "%.0f", interframe[i].value[client]);
             } else {
                 length += snprintf(csv_string+length, max_string_size, "%f", interframe[i].value[client]);
             }
@@ -485,4 +486,15 @@ qboolean FS_IsFileEmpty(char* filename) {
     FS_FCloseFile(file);
     // Return the result
     return result;
+}
+
+int rand_range(int min, int max) {
+/* return a random number between min and max, with more variability than a simple (rand() % (max-min)) + min
+ */
+
+    int retval;
+    
+    retval = ((double) rand() / ((double)RAND_MAX) + 1.0) * (max-min+1) + min;
+
+    return retval;
 }

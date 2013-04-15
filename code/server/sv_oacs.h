@@ -101,3 +101,4 @@ char *SV_ExtendedRecordFeaturesToCSV(char *csv_string, int max_string_size, feat
 void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, int client);
 //char* strncat_lin( char* dest, char* src, size_t n );
 qboolean FS_IsFileEmpty(char* filename);
+int rand_range(int min, int max);
