@@ -488,13 +488,12 @@ qboolean FS_IsFileEmpty(char* filename) {
     return result;
 }
 
+// Return a random number between min and max, with more variability than a simple (rand() % (max-min)) + min
 int rand_range(int min, int max) {
-/* return a random number between min and max, with more variability than a simple (rand() % (max-min)) + min
- */
 
     int retval;
     
-    retval = ((double) rand() / ((double)RAND_MAX) + 1.0) * (max-min+1) + min;
+    retval = ( (double) rand() / (double)RAND_MAX * (max-min+1) ) + min;
 
     return retval;
 }
