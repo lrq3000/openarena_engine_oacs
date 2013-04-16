@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // sv_oacs.h
 
 //#include "../libjson/cJSON.h"
+#include <math.h> // for NAN
 
 #define MAX_STRING_CSV 2048
 
@@ -94,10 +95,12 @@ qboolean sv_interframeModified[MAX_CLIENTS]; // was the current interframe modif
 void SV_ExtendedRecordInit(void);
 void SV_ExtendedRecordUpdate(void);
 void SV_ExtendedRecordShutdown(void);
+void SV_ExtendedRecordClientConnect(int client);
 void SV_ExtendedRecordDropClient(int client);
 void SV_ExtendedRecordWriteStruct(void);
 void SV_ExtendedRecordWriteValues(int client);
 void SV_ExtendedRecordInterframeInit(int client);
+void SV_ExtendedRecordInterframeInitValues(int client);
 void SV_ExtendedRecordInterframeUpdate(int client);
 //feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe);
 //cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues, int client);

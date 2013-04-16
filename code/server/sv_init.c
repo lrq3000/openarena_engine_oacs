@@ -846,7 +846,8 @@ void SV_Init (void)
 	Cbuf_AddText("rehashbans\n");
     
     // OACS: Initialize the interframe/features variable and write down the extended records structures (types)
-    SV_ExtendedRecordInit();
+    if (sv_oacsEnable->integer == 1)
+        SV_ExtendedRecordInit();
 }
 
 

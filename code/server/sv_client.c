@@ -776,6 +776,10 @@ void SV_ClientEnterWorld( client_t *client, usercmd_t *cmd ) {
 
 	Com_DPrintf( "Going from CS_PRIMED to CS_ACTIVE for %s\n", client->name );
 	client->state = CS_ACTIVE;
+    
+    // OACS: Set up the interframe for this client
+    if (sv_oacsEnable->integer == 1)
+        SV_ExtendedRecordClientConnect(client - svs.clients);
 
 	// server-side demo playback: prevent players from joining the game when a demo is replaying (particularly if the gametype is non-team based, by default the gamecode force players to join in)
 	if (sv.demoState == DS_PLAYBACK &&

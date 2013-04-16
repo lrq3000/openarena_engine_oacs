@@ -24,17 +24,16 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 /* How to add a new feature:
 - Edit sv_oacs.h and add your new feature in the interframeIndex_t enum,
-- Edit the SV_ExtendedRecordInterframeInit() to add the initialization settings (key, type, modifier, and optionally default value but if you don't set one it will be 0),
-- Edit the SV_ExtendedRecordInterframeUpdate() function OR add your code elsewhere to update the feature's value on every frame (or wherever else you want in the ioquake3 engine).
+- Edit the SV_ExtendedRecordInterframeInit() to add the initialization settings (key, type, modifier),
+- Edit the SV_ExtendedRecordInterframeInitValues() function OR add your code anywhere else inside the ioquake3 code to update the feature's value on every frame, but then use the function SV_ExtendedRecordSetFeatureValue() to update the value of a feature!
 Note: ALWAYS use SV_ExtendedRecordSetFeatureValue() to change the value of a feature (_don't_ do it directly!), because this function manage if the interframe needs to be written and flushed into a file on change or not (if a feature is non-modifier).
-Note2: ...JSON...?
 
 */
 
 #include "server.h"
 //#include "sv_oacs.h"
 //#include "../libjson/cJSON.h"
-#include <time.h> // for random
+#include <time.h> // for timestamp and to init random seed
 #include <stdlib.h> // for random
 
 //feature_t interframe[FEATURES_COUNT];
@@ -43,6 +42,7 @@ cvar_t  *sv_oacsTypesFile;
 cvar_t  *sv_oacsDataFile;
 cvar_t  *sv_oacsEnable;
 
+// Called only once, at the launching of the server
 void SV_ExtendedRecordInit(void) {
     //Initializing the random seed for the random values generator
     srand(time(NULL));
@@ -54,6 +54,7 @@ void SV_ExtendedRecordInit(void) {
     SV_ExtendedRecordWriteStruct();
 }
 
+// Called for each server frame
 void SV_ExtendedRecordUpdate(void) {
     // Update the features values
     SV_ExtendedRecordInterframeUpdate(-1);
@@ -68,12 +69,21 @@ void SV_ExtendedRecordShutdown(void) {
     SV_ExtendedRecordWriteValues(-1);
 }
 
+// When a client connects to the server
+void SV_ExtendedRecordClientConnect(int client) {
+    // Init the values for this client (like playerid, etc.)
+    SV_ExtendedRecordInterframeInitValues(client);
+}
+
 // When a client gets disconnected (either willingly or unwillingly)
 void SV_ExtendedRecordDropClient(int client) {
-    // Commit the last interframe for that client before he gets totally disconnected
-    SV_ExtendedRecordWriteValues(client);
-    // Reinit the values for that client
-    SV_ExtendedRecordInterframeInit(client);
+    // Drop the client only if he isn't already dropped (so that the reset won't be called multiple times while the client goes into CS_ZOMBIE)
+    if ( !( (sv_interframe[FEATURE_PLAYERID].value[client] == featureDefaultValue) | isnan(sv_interframe[FEATURE_PLAYERID].value[client])) ) {
+        // Commit the last interframe for that client before he gets totally disconnected
+        SV_ExtendedRecordWriteValues(client);
+        // Reinit the values for that client
+        SV_ExtendedRecordInterframeInit(client);
+    }
 }
 
 // Write the types of the features in a text file, in CSV format
@@ -112,7 +122,7 @@ void SV_ExtendedRecordWriteValues(int client) {
     }
     
     // Open the data file
-    Com_DPrintf("OACS: Saving the oacs values in file %s\n", sv_oacsDataFile->string);
+    Com_DPrintf("OACS: Saving the oacs values for client %i in file %s\n", client, sv_oacsDataFile->string);
     file = FS_FOpenFileAppend( sv_oacsDataFile->string ); // open in append mode
 
     // If there is no data file or it is empty, we first output the headers (features keys/names)
@@ -230,7 +240,7 @@ void SV_ExtendedRecordWriteValuesJson(int client) {
 void SV_ExtendedRecordInterframeInit(int client) {
     int i, j, startclient, endclient;
     
-    Com_Printf("OACS: Initializing the features.");
+    Com_Printf("OACS: Initializing the features for client %i\n", client);
 
     if (client < 0) {
         // PlayerID
@@ -286,21 +296,28 @@ void SV_ExtendedRecordInterframeInit(int client) {
 
     // Now we will initialize the value for every feature and every client or just one client if a clientid is supplied (else we may get a weird random value from an old memory zone that was not cleaned up)
     for (i=startclient;i<endclient;i++) {
-        // Generic features reset, setting 0 as the default (you can set a specific default value for a specific feature just after the loop
+        // Generic features reset, setting default value (you can set a specific default value for a specific feature in the function SV_ExtendedRecordInterframeInitValues() )
         for (j=0;j<FEATURES_COUNT;j++) {
             sv_interframe[j].value[i] = featureDefaultValue; // set the default value for features (preferable NAN - Not A Number)
         }
         
         // Hack to avoid the first interframe (which is null) from being committed (we don't want the first interframe to be saved, since it contains only null value - the update func will take care of fetching correct values)
         sv_interframeModified[i] = qtrue;
-        
-        // Specific default values: set here the default values you want for a feature if you want it to be different than 0 or NaN
-        //char tmp[MAX_STRING_CHARS] = ""; snprintf(tmp, MAX_STRING_CHARS, "%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL));
-        sv_interframe[FEATURE_PLAYERID].value[i] = atof( va("%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL)) ); // TODO: use a real UUID/GUID here (for the moment we simply use the timestamp in seconds + a random number, this should be enough for now to ensure the uniqueness of all the players) - do NOT use ioquake3 GUID since it can be spoofed (there's no centralized authorization system!)
-        sv_interframe[FEATURE_SVTIME].value[i] = sv.time;
     }
 }
 
+// Set the initial values for some features
+// set here the default values you want for a feature if you want it to be different than 0 or NaN
+// Note: do not use SV_ExtendedRecordSetFeatureValue() here, just access directly sv_interframe
+void SV_ExtendedRecordInterframeInitValues(int client) {
+    // Set unique player id (we want this id to be completely generated serverside and without any means to tamper it clientside) - we don't care that the id change for the same player when he reconnects, since anyway the id will always link to the player's ip and guid using the playerstable
+    //char tmp[MAX_STRING_CHARS] = ""; snprintf(tmp, MAX_STRING_CHARS, "%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL));
+    sv_interframe[FEATURE_PLAYERID].value[client] = atof( va("%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL)) ); // TODO: use a real UUID/GUID here (for the moment we simply use the timestamp in seconds + a random number, this should be enough for now to ensure the uniqueness of all the players) - do NOT use ioquake3 GUID since it can be spoofed (there's no centralized authorization system!)
+    // Server time
+    sv_interframe[FEATURE_SVTIME].value[client] = sv.time;
+}
+
+// Update features for each server frame
 void SV_ExtendedRecordInterframeUpdate(int client) {
     int i, startclient, endclient;
 
@@ -329,7 +346,7 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
         SV_ExtendedRecordSetFeatureValue(FEATURE_TIMESTAMP, time(NULL), i);
         SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, 0, i);
         SV_ExtendedRecordSetFeatureValue(FEATURE_ARMOR, 0, i);
-        SV_ExtendedRecordSetFeatureValue(LABEL_CHEATER, rand() % 2, i);
+        SV_ExtendedRecordSetFeatureValue(LABEL_CHEATER, rand_range(0,1), i);
         
         // Update delta features (values that need to be computed only in difference with the previous interframe when there's a change)
         // Note: you should only update those features at the end, because you WANT to make sure that any change to any modifier feature already happened, so that we know for sure that the interframe will be committed or not.
@@ -431,8 +448,9 @@ char *SV_ExtendedRecordFeaturesToCSV(char *csv_string, int max_string_size, feat
 // Set the value of a feature in the current interframe for a given player, and commit the previous interframe for this client if the feature is a modifier
 // Note: you should use this function whenever you want to modify the value of a feature for a client, because it will take care of writing down the interframes values whenever needed (else you may lose the data of your interframes!), because the function to commit the features values is only called from here.
 void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, int client) {
-    // If the value has changed, we do something, else we just keep it like that
-    if (sv_interframe[feature].value[client] != value) {
+    // If the value has changed (or the old one is NaN), we do something, else we just keep it like that
+    // TODO: maybe compare the delta (diff) below a certain threshold for floats, eg: if (fabs(a - b) < SOME_DELTA)
+    if ( (sv_interframe[feature].value[client] != value) | isnan(sv_interframe[feature].value[client]) ) {
         // If this feature is a modifier, and the interframe wasn't already modified in the current frame, we switch the modified flag and commit the previous interframe (else if it was already modified, we wait until all features modifications take place and we'll see at the next frame)
         if ( sv_interframe[feature].modifier == qtrue && sv_interframeModified[client] != qtrue ) {
             // Set the modified flag to true
@@ -445,6 +463,27 @@ void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, i
         sv_interframe[feature].value[client] = value;
     }
 }
+// TODO: try to understand why the following (when set in the beginning of SV_ExtendedRecordSetFeatureValue):
+/*
+    if (feature == LABEL_CHEATER) {
+        Com_DPrintf("OACS TEST3 old:%.0f new:%.0f\n", sv_interframe[feature].value[client], value);
+        Com_DPrintf("OACS TEST4 r1:%i r2:%i, r3:%i r4:%i\n", value == sv_interframe[feature].value[client], !(value == sv_interframe[feature].value[client]), (sv_interframe[feature].value[client] == sv_interframe[feature].value[client]), isnan(sv_interframe[feature].value[client]));
+        double t1 = sv_interframe[feature].value[client];
+        double t2 = 1.0;
+        Com_DPrintf("OACS TEST5 t1:%f t2:%f\n", t1, t2);
+        Com_DPrintf("OACS TEST6 u1:%i u2:%i\n", t1 == t2, t1 != t2);
+    }
+Produces the following:
+OACS TEST3 old:nan new:1
+OACS TEST4 r1:1 r2:0, r3:1 r4:1
+OACS TEST5 t1:nan t2:1.000000
+OACS TEST6 u1:1 u2:0
+But if we do:
+double t1 = NAN;
+or:
+double t1 = featureDefaultValue;
+It works OK!
+*/
 
 /* Append a string to another in linear time and safely with a limit n of maximum size - DOESN'T WORK
 char* strncat_lin( char* dest, char* src, size_t n ) {
