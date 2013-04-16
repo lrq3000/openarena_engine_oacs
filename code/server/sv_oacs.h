@@ -79,17 +79,33 @@ typedef struct interframe_s
 } interframe_t;
 */
 
+// Structure of one player entry in the players' table
+typedef struct playertable_s
+{
+    double playerid;
+    char *ip;
+    char *guid;
+    double timestamp;
+    char datetime[MAX_STRING_CSV];
+    char *nickname;
+} playertable_t;
+
 // Declare the sv.interframe global variable, which will contain the array of all features
 //extern feature_t interframe[FEATURES_COUNT];
 
-// Cvars
+// Cvars to configure OACS behavior
+extern cvar_t  *sv_oacsEnable;
+extern cvar_t  *sv_oacsPlayersTableEnable;
 extern cvar_t  *sv_oacsTypesFile;
 extern cvar_t  *sv_oacsDataFile;
-extern cvar_t  *sv_oacsEnable;
-// oacs extended recording variables
+extern cvar_t  *sv_oacsPlayersTable;
+
+// OACS extended recording variables (necessary for functionning)
 feature_t sv_interframe[FEATURES_COUNT];
 feature_t sv_previnterframe[FEATURES_COUNT]; // previous interframe
 qboolean sv_interframeModified[MAX_CLIENTS]; // was the current interframe modified from the previous one?
+playertable_t playertable; // extended player identification data (we only need to store one in memory at a time, since we only need it at client connection)
+char *playerstable_keys; // key names, edit this (in sv_oacs.c) if you want to add more infos in the playerstable
 
 // Functions
 void SV_ExtendedRecordInit(void);
@@ -99,14 +115,17 @@ void SV_ExtendedRecordClientConnect(int client);
 void SV_ExtendedRecordDropClient(int client);
 void SV_ExtendedRecordWriteStruct(void);
 void SV_ExtendedRecordWriteValues(int client);
+void SV_ExtendedRecordWritePlayerTable(int client);
 void SV_ExtendedRecordInterframeInit(int client);
 void SV_ExtendedRecordInterframeInitValues(int client);
 void SV_ExtendedRecordInterframeUpdate(int client);
+void SV_ExtendedRecordPlayerTableInit(int client);
 //feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe);
 //cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues, int client);
 //void SV_ExtendedRecordWriteStructJson(void);
 //void SV_ExtendedRecordWriteValuesJson(int client);
 char *SV_ExtendedRecordFeaturesToCSV(char *csv_string, int max_string_size, feature_t *interframe, int savewhat, int client);
+char *SV_ExtendedRecordPlayerTableToCSV(char *csv_string, int max_string_size, playertable_t playertable);
 void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, int client);
 //char* strncat_lin( char* dest, char* src, size_t n );
 qboolean FS_IsFileEmpty(char* filename);

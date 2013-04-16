@@ -832,9 +832,11 @@ void SV_Init (void)
 	sv_demoTolerant = Cvar_Get ("sv_demoTolerant", "0", CVAR_ARCHIVE );
     
     // oacs extended recording variables
+    sv_oacsEnable = Cvar_Get ("sv_oacsEnable", "1", CVAR_ARCHIVE );
+    sv_oacsPlayersTableEnable = Cvar_Get ("sv_oacsPlayersTableEnable", "1", CVAR_ARCHIVE );
     sv_oacsTypesFile = Cvar_Get ("sv_oacsTypesFile", "oacs/types.txt", CVAR_ARCHIVE );
     sv_oacsDataFile = Cvar_Get ("sv_oacsDataFile", "oacs/data.txt", CVAR_ARCHIVE );
-    sv_oacsEnable = Cvar_Get ("sv_oacsEnable", "1", CVAR_ARCHIVE );
+    sv_oacsPlayersTable = Cvar_Get ("sv_oacsPlayersTable", "oacs/playerstable.txt", CVAR_ARCHIVE );
 
 	// initialize bot cvars so they are listed and can be set before loading the botlib
 	SV_BotInitCvars();
