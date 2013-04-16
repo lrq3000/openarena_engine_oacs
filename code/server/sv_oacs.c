@@ -79,10 +79,8 @@ void SV_ExtendedRecordShutdown(void) {
 
 // When a client connects to the server
 void SV_ExtendedRecordClientConnect(int client) {
-    sharedEntity_t *entity;
-    entity = SV_GentityNum(client);
-
-    if ( !(entity->r.svFlags & SVF_BOT) ) {
+    // Proceed only if the player is not a bot
+    if ( !SV_IsBot(client) ) {
         // Init the values for this client (like playerid, etc.)
         SV_ExtendedRecordInterframeInitValues(client);
 
@@ -99,11 +97,8 @@ void SV_ExtendedRecordClientConnect(int client) {
 
 // When a client gets disconnected (either willingly or unwillingly)
 void SV_ExtendedRecordDropClient(int client) {
-    sharedEntity_t *entity;
-    entity = SV_GentityNum(client);
-
     // Drop the client only if he isn't already dropped (so that the reset won't be called multiple times while the client goes into CS_ZOMBIE)
-    if ( !( (sv_interframe[FEATURE_PLAYERID].value[client] == featureDefaultValue) | isnan(sv_interframe[FEATURE_PLAYERID].value[client]) | (entity->r.svFlags & SVF_BOT) ) ) {
+    if ( !( (sv_interframe[FEATURE_PLAYERID].value[client] == featureDefaultValue) | isnan(sv_interframe[FEATURE_PLAYERID].value[client]) | SV_IsBot(client) ) ) {
         // Commit the last interframe for that client before he gets totally disconnected
         SV_ExtendedRecordWriteValues(client);
         // Reinit the values for that client
@@ -135,7 +130,6 @@ void SV_ExtendedRecordWriteValues(int client) {
     fileHandle_t	file;
     char out[MAX_STRING_CSV];
     int i, startclient, endclient;
-    sharedEntity_t *entity;
 
     // If a client id is supplied, we will only write the JSON interframe for this client
     if (client >= 0) {
@@ -164,9 +158,10 @@ void SV_ExtendedRecordWriteValues(int client) {
     }
 
     for (i=startclient;i<endclient;i++) {
-        entity = SV_GentityNum(i);
-		if ( (svs.clients[i].state < CS_ACTIVE) | (entity->r.svFlags & SVF_BOT) ) // avoid saving empty interframes of not yet fully connected players and bots
+		if ( (svs.clients[i].state < CS_ACTIVE) )
 			continue;
+        else if ( SV_IsBot(i) | SV_IsSpectator(i) ) // avoid saving empty interframes of not yet fully connected players, bots nor spectators
+            continue;
 
         SV_ExtendedRecordFeaturesToCSV(out, MAX_STRING_CSV, sv_interframe, 2, i);
 
@@ -184,10 +179,8 @@ void SV_ExtendedRecordWriteValues(int client) {
 void SV_ExtendedRecordWritePlayerTable(int client) {
     fileHandle_t	file;
     char out[MAX_STRING_CSV];
-    sharedEntity_t *entity;
-    
-    entity = SV_GentityNum(client);
-    if ( (entity->r.svFlags & SVF_BOT) ) // avoid saving empty players table entry of not yet fully connected players and bots
+
+    if ( SV_IsBot(client) ) // avoid saving empty players table entry of not yet fully connected players and bots
         return;
 
     // Open the data file
@@ -369,11 +362,8 @@ void SV_ExtendedRecordInterframeInit(int client) {
 // set here the default values you want for a feature if you want it to be different than 0 or NaN
 // Note: do not use SV_ExtendedRecordSetFeatureValue() here, just access directly sv_interframe
 void SV_ExtendedRecordInterframeInitValues(int client) {
-    sharedEntity_t *entity;
-    entity = SV_GentityNum(client);
-    
     // Proceed only if the client is not a bot
-    if ( !(entity->r.svFlags & SVF_BOT) ) {
+    if ( !SV_IsBot(client) ) {
         // Set unique player id (we want this id to be completely generated serverside and without any means to tamper it clientside) - we don't care that the id change for the same player when he reconnects, since anyway the id will always link to the player's ip and guid using the playerstable
         //char tmp[MAX_STRING_CHARS] = ""; snprintf(tmp, MAX_STRING_CHARS, "%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL));
         sv_interframe[FEATURE_PLAYERID].value[client] = atof( va("%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL)) ); // TODO: use a real UUID/GUID here (for the moment we simply use the timestamp in seconds + a random number, this should be enough for now to ensure the uniqueness of all the players) - do NOT use ioquake3 GUID since it can be spoofed (there's no centralized authorization system!)
@@ -387,7 +377,6 @@ void SV_ExtendedRecordInterframeInitValues(int client) {
 // Update features for each server frame
 void SV_ExtendedRecordInterframeUpdate(int client) {
     int i, startclient, endclient;
-    sharedEntity_t *entity;
 
     // If a client id is supplied, we will only reset values for this client
     if (client >= 0) {
@@ -401,13 +390,15 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
 
     // Now we will initialize the value for every feature and every client or just one client if a clientid is supplied (else we may get a weird random value from an old memory zone that was not cleaned up)
     for (i=startclient;i<endclient;i++) {
-        entity = SV_GentityNum(i);
         // If the client was disconnected, and not already reinitialized, we commit the last interframe and reset
         if (svs.clients[i].state == CS_ZOMBIE && sv_interframe[FEATURE_PLAYERID].value[i] != 0) {
             SV_ExtendedRecordDropClient(i);
         // Else if the client is not already fully connected in the game, we just skip this client
-        } else if ( (svs.clients[i].state < CS_ACTIVE) | (entity->r.svFlags & SVF_BOT) ) {
+        } else if ( svs.clients[i].state < CS_ACTIVE ) {
 			continue;
+        // Avoid saving empty interframes of not yet fully connected players, bots nor spectators
+        } else if ( SV_IsBot(i) | SV_IsSpectator(i) ) {
+            continue;
         }
 
         // Updating values: you can add here your code to update a feature at the end of every frame and for every player
@@ -655,6 +646,38 @@ qboolean FS_IsFileEmpty(char* filename) {
     FS_FCloseFile(file);
     // Return the result
     return result;
+}
+
+// Check if a client is a bot
+qboolean SV_IsBot(int client) {
+    sharedEntity_t *entity;
+    entity = SV_GentityNum(client); // Get entity (of this player) object
+    
+    // Proceed only if the client is not a bot
+    if (entity->r.svFlags & SVF_BOT) {
+        return qtrue;
+    } else {
+        return qfalse;
+    }
+}
+
+// Check if a player is spectating
+qboolean SV_IsSpectator(int client) {
+    // WARNING: sv.configstrings[CS_PLAYERS + client] is NOT the same as cl->userinfo, they don't contain the same infos!
+
+    int team;
+    char team_s[MAX_STRING_CHARS];
+    client_t	*cl;
+    cl = &svs.clients[client]; // Get client object
+
+    team = atoi( Info_ValueForKey( sv.configstrings[CS_PLAYERS + client], "t" ) ); // Get the team
+    Q_strncpyz(team_s, Info_ValueForKey( cl->userinfo, "team" ), MAX_STRING_CHARS); // Get the team from another cvar which is formatted differently
+
+    if ( (team == TEAM_SPECTATOR) | !Q_stricmp(team_s, "spectator") | !Q_stricmp(team_s, "s") ) {
+        return qtrue;
+    } else {
+        return qfalse;
+    }
 }
 
 // Return a random number between min and max, with more variability than a simple (rand() % (max-min)) + min

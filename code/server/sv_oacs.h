@@ -129,4 +129,6 @@ char *SV_ExtendedRecordPlayerTableToCSV(char *csv_string, int max_string_size, p
 void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, int client);
 //char* strncat_lin( char* dest, char* src, size_t n );
 qboolean FS_IsFileEmpty(char* filename);
+qboolean SV_IsBot(int client);
+qboolean SV_IsSpectator(int client);
 int rand_range(int min, int max);
