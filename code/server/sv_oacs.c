@@ -47,6 +47,7 @@ cvar_t  *sv_oacsPlayersTable;
 
 char *playerstable_keys = "playerid,ip,guid,timestamp,datetime,nickname"; // key names, edit this if you want to add more infos in the playerstable
 
+// Initialize the interframe structure at the start of the server
 // Called only once, at the launching of the server
 void SV_ExtendedRecordInit(void) {
     //Initializing the random seed for the random values generator
@@ -59,6 +60,7 @@ void SV_ExtendedRecordInit(void) {
     SV_ExtendedRecordWriteStruct();
 }
 
+// Update interframe values for all connected clients
 // Called for each server frame
 void SV_ExtendedRecordUpdate(void) {
     // Update the features values
@@ -68,7 +70,8 @@ void SV_ExtendedRecordUpdate(void) {
     //SV_ExtendedRecordWriteValues(-1); // this will be automatically called when an interframe needs to be committed
 }
 
-// Called at engine shutdown
+// Write down the last interframe values at shutdown
+// Called once at engine shutdown
 void SV_ExtendedRecordShutdown(void) {
     // Write down all the not yet committed values into the datafile
     SV_ExtendedRecordWriteValues(-1);
@@ -76,23 +79,31 @@ void SV_ExtendedRecordShutdown(void) {
 
 // When a client connects to the server
 void SV_ExtendedRecordClientConnect(int client) {
-    // Init the values for this client (like playerid, etc.)
-    SV_ExtendedRecordInterframeInitValues(client);
+    sharedEntity_t *entity;
+    entity = SV_GentityNum(client);
 
-    // If the admin is willing to save extended identification informations
-    if (sv_oacsPlayersTableEnable->integer == 1) {
-        // Init the playerstable entry of this client (extended player identification informations)
-        SV_ExtendedRecordPlayerTableInit(client);
-        
-        // Write down the entry into the players table file
-        SV_ExtendedRecordWritePlayerTable(client);
+    if ( !(entity->r.svFlags & SVF_BOT) ) {
+        // Init the values for this client (like playerid, etc.)
+        SV_ExtendedRecordInterframeInitValues(client);
+
+        // If the admin is willing to save extended identification informations
+        if (sv_oacsPlayersTableEnable->integer == 1) {
+            // Init the playerstable entry of this client (extended player identification informations)
+            SV_ExtendedRecordPlayerTableInit(client);
+            
+            // Write down the entry into the players table file
+            SV_ExtendedRecordWritePlayerTable(client);
+        }
     }
 }
 
 // When a client gets disconnected (either willingly or unwillingly)
 void SV_ExtendedRecordDropClient(int client) {
+    sharedEntity_t *entity;
+    entity = SV_GentityNum(client);
+
     // Drop the client only if he isn't already dropped (so that the reset won't be called multiple times while the client goes into CS_ZOMBIE)
-    if ( !( (sv_interframe[FEATURE_PLAYERID].value[client] == featureDefaultValue) | isnan(sv_interframe[FEATURE_PLAYERID].value[client])) ) {
+    if ( !( (sv_interframe[FEATURE_PLAYERID].value[client] == featureDefaultValue) | isnan(sv_interframe[FEATURE_PLAYERID].value[client]) | (entity->r.svFlags & SVF_BOT) ) ) {
         // Commit the last interframe for that client before he gets totally disconnected
         SV_ExtendedRecordWriteValues(client);
         // Reinit the values for that client
@@ -124,6 +135,7 @@ void SV_ExtendedRecordWriteValues(int client) {
     fileHandle_t	file;
     char out[MAX_STRING_CSV];
     int i, startclient, endclient;
+    sharedEntity_t *entity;
 
     // If a client id is supplied, we will only write the JSON interframe for this client
     if (client >= 0) {
@@ -152,7 +164,8 @@ void SV_ExtendedRecordWriteValues(int client) {
     }
 
     for (i=startclient;i<endclient;i++) {
-		if (svs.clients[i].state < CS_ACTIVE)
+        entity = SV_GentityNum(i);
+		if ( (svs.clients[i].state < CS_ACTIVE) | (entity->r.svFlags & SVF_BOT) ) // avoid saving empty interframes of not yet fully connected players and bots
 			continue;
 
         SV_ExtendedRecordFeaturesToCSV(out, MAX_STRING_CSV, sv_interframe, 2, i);
@@ -171,6 +184,11 @@ void SV_ExtendedRecordWriteValues(int client) {
 void SV_ExtendedRecordWritePlayerTable(int client) {
     fileHandle_t	file;
     char out[MAX_STRING_CSV];
+    sharedEntity_t *entity;
+    
+    entity = SV_GentityNum(client);
+    if ( (entity->r.svFlags & SVF_BOT) ) // avoid saving empty players table entry of not yet fully connected players and bots
+        return;
 
     // Open the data file
     Com_DPrintf("OACS: Saving the oacs players table entry for client %i in file %s\n", client, sv_oacsPlayersTable->string);
@@ -202,7 +220,7 @@ void SV_ExtendedRecordWriteStructJson(void) {
     fileHandle_t	file;
 
     Com_DPrintf("OACS: Saving the oacs types in file %s\n", sv_oacsTypesFile->string);
-    
+
     // Test
     //file = FS_FOpenFileWrite( sv_oacsTypesFile->string );
      //cJSON *root,*fmt;char *out;
@@ -216,9 +234,9 @@ void SV_ExtendedRecordWriteStructJson(void) {
 	//cJSON_AddNumberToObject(fmt,"frame rate",	24);
 	//out=cJSON_PrintUnformatted(root);	cJSON_Delete(root); FS_Write(out, strlen(out), file); free(out);
     // End Test
-    
-    
-    
+
+
+
     // Prepare the interframe (convert to an array to allow for walking through it)
     // feature_t* interframe_array;
     // interframe_array = SV_ExtendedRecordInterframeToArray(sv_interframe);
@@ -226,11 +244,11 @@ void SV_ExtendedRecordWriteStructJson(void) {
     // Convert the interframe array into a JSON tree
     cJSON *root;
     root = SV_ExtendedRecordFeaturesToJson(sv_interframe, qtrue, qfalse, -1);
-    
+
     // Convert the json tree into a text format (unformatted = no line returns)
     char *out;
     out=cJSON_PrintUnformatted(root); cJSON_Delete(root);
-    
+
     // Output into the text file
     file = FS_FOpenFileWrite( sv_oacsTypesFile->string ); // open in write mode
     FS_Write(out, strlen(out), file); free(out); // write the text and free it
@@ -351,18 +369,25 @@ void SV_ExtendedRecordInterframeInit(int client) {
 // set here the default values you want for a feature if you want it to be different than 0 or NaN
 // Note: do not use SV_ExtendedRecordSetFeatureValue() here, just access directly sv_interframe
 void SV_ExtendedRecordInterframeInitValues(int client) {
-    // Set unique player id (we want this id to be completely generated serverside and without any means to tamper it clientside) - we don't care that the id change for the same player when he reconnects, since anyway the id will always link to the player's ip and guid using the playerstable
-    //char tmp[MAX_STRING_CHARS] = ""; snprintf(tmp, MAX_STRING_CHARS, "%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL));
-    sv_interframe[FEATURE_PLAYERID].value[client] = atof( va("%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL)) ); // TODO: use a real UUID/GUID here (for the moment we simply use the timestamp in seconds + a random number, this should be enough for now to ensure the uniqueness of all the players) - do NOT use ioquake3 GUID since it can be spoofed (there's no centralized authorization system!)
-    // Server time
-    sv_interframe[FEATURE_SVTIME].value[client] = sv.time;
-    // FrameRepeat: number of times a frame was repeated (1 = one frame, it was not repeated)
-    sv_interframe[FEATURE_FRAMEREPEAT].value[client] = 1;
+    sharedEntity_t *entity;
+    entity = SV_GentityNum(client);
+    
+    // Proceed only if the client is not a bot
+    if ( !(entity->r.svFlags & SVF_BOT) ) {
+        // Set unique player id (we want this id to be completely generated serverside and without any means to tamper it clientside) - we don't care that the id change for the same player when he reconnects, since anyway the id will always link to the player's ip and guid using the playerstable
+        //char tmp[MAX_STRING_CHARS] = ""; snprintf(tmp, MAX_STRING_CHARS, "%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL));
+        sv_interframe[FEATURE_PLAYERID].value[client] = atof( va("%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL)) ); // TODO: use a real UUID/GUID here (for the moment we simply use the timestamp in seconds + a random number, this should be enough for now to ensure the uniqueness of all the players) - do NOT use ioquake3 GUID since it can be spoofed (there's no centralized authorization system!)
+        // Server time
+        sv_interframe[FEATURE_SVTIME].value[client] = sv.time;
+        // FrameRepeat: number of times a frame was repeated (1 = one frame, it was not repeated)
+        sv_interframe[FEATURE_FRAMEREPEAT].value[client] = 1;
+    }
 }
 
 // Update features for each server frame
 void SV_ExtendedRecordInterframeUpdate(int client) {
     int i, startclient, endclient;
+    sharedEntity_t *entity;
 
     // If a client id is supplied, we will only reset values for this client
     if (client >= 0) {
@@ -376,11 +401,12 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
 
     // Now we will initialize the value for every feature and every client or just one client if a clientid is supplied (else we may get a weird random value from an old memory zone that was not cleaned up)
     for (i=startclient;i<endclient;i++) {
+        entity = SV_GentityNum(i);
         // If the client was disconnected, and not already reinitialized, we commit the last interframe and reset
         if (svs.clients[i].state == CS_ZOMBIE && sv_interframe[FEATURE_PLAYERID].value[i] != 0) {
             SV_ExtendedRecordDropClient(i);
         // Else if the client is not already fully connected in the game, we just skip this client
-        } else if (svs.clients[i].state < CS_ACTIVE) {
+        } else if ( (svs.clients[i].state < CS_ACTIVE) | (entity->r.svFlags & SVF_BOT) ) {
 			continue;
         }
 
@@ -468,7 +494,7 @@ feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe) {
 cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues, int client) {
     int i;
     cJSON *root, *feature;
-    
+
     //root=cJSON_CreateArray();
     root=cJSON_CreateObject();
 	for (i=0;i<FEATURES_COUNT;i++)
@@ -481,7 +507,7 @@ cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes
         if (savevalues == qtrue && client >= 0)
             cJSON_AddNumberToObject(feature, "value", interframe[i].value[client]);
 	}
-    
+
     return root;
 }
 */
