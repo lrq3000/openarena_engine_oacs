@@ -315,6 +315,8 @@ void SV_ExtendedRecordInterframeInitValues(int client) {
     sv_interframe[FEATURE_PLAYERID].value[client] = atof( va("%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL)) ); // TODO: use a real UUID/GUID here (for the moment we simply use the timestamp in seconds + a random number, this should be enough for now to ensure the uniqueness of all the players) - do NOT use ioquake3 GUID since it can be spoofed (there's no centralized authorization system!)
     // Server time
     sv_interframe[FEATURE_SVTIME].value[client] = sv.time;
+    // FrameRepeat: number of times a frame was repeated (1 = one frame, it was not repeated)
+    sv_interframe[FEATURE_FRAMEREPEAT].value[client] = 1;
 }
 
 // Update features for each server frame
@@ -363,7 +365,7 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
         
         // Check if the interframe is repeated or if it has changed since the previous one
         if (sv_interframeModified[i] == qtrue) { // it changed, and the previous one was already committed, so we just have to reset FRAMEREPEAT and the modified flag
-            SV_ExtendedRecordSetFeatureValue(FEATURE_FRAMEREPEAT, 0, i);
+            SV_ExtendedRecordSetFeatureValue(FEATURE_FRAMEREPEAT, 1, i);
             sv_interframeModified[i] = qfalse;
         } else { // Else the interframe is repeated, not changed, thus we increment the FRAMEREPEAT
             sv_interframe[FEATURE_FRAMEREPEAT].value[i]++;
