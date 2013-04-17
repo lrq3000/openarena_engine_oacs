@@ -45,7 +45,7 @@ cvar_t  *sv_oacsTypesFile;
 cvar_t  *sv_oacsDataFile;
 cvar_t  *sv_oacsPlayersTable;
 
-char *sv_playerstable_keys = "playerid,ip,guid,timestamp,datetime,nickname"; // key names, edit this if you want to add more infos in the playerstable
+char *sv_playerstable_keys = "playerid,playerip,playerguid,timestamp,datetime,playername"; // key names, edit this if you want to add more infos in the playerstable
 
 // Initialize the interframe structure at the start of the server
 // Called only once, at the launching of the server
