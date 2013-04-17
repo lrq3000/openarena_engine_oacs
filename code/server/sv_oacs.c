@@ -152,7 +152,6 @@ void SV_ExtendedRecordWriteValues(int client) {
     }
 
     // Open the data file
-    Com_DPrintf("OACS: Saving the oacs values for client %i in file %s\n", client, sv_oacsDataFile->string);
     file = FS_FOpenFileAppend( sv_oacsDataFile->string ); // open in append mode
 
     // If there is no data file or it is empty, we first output the headers (features keys/names)
@@ -176,6 +175,7 @@ void SV_ExtendedRecordWriteValues(int client) {
         SV_ExtendedRecordFeaturesToCSV(out, MAX_STRING_CSV, sv_interframe, 2, i);
 
         // Output into the text file (only if there's at least one client connected!)
+        Com_DPrintf("OACS: Saving the oacs values for client %i in file %s\n", client, sv_oacsDataFile->string);
         FS_Write(va("%s\n", out), strlen(out)+strlen("\n"), file); //free(out); // write the text (with a line return) and free it
         FS_Flush( file ); // update the content of the file
 	}
