@@ -44,6 +44,7 @@ cvar_t  *sv_oacsPlayersTableEnable;
 cvar_t  *sv_oacsTypesFile;
 cvar_t  *sv_oacsDataFile;
 cvar_t  *sv_oacsPlayersTable;
+cvar_t  *sv_oacsMinPlayers;
 
 char *sv_playerstable_keys = "playerid,playerip,playerguid,timestamp,datetime,playername"; // key names, edit this if you want to add more infos in the playerstable
 
@@ -81,6 +82,9 @@ void SV_ExtendedRecordShutdown(void) {
 void SV_ExtendedRecordClientConnect(int client) {
     // Proceed only if the player is not a bot
     if ( !SV_IsBot(client) ) {
+        // Recompute the number of connected human players
+        sv_oacshumanplayers = SV_CountPlayers();
+    
         // Init the values for this client (like playerid, etc.)
         SV_ExtendedRecordInterframeInitValues(client);
 
@@ -99,6 +103,9 @@ void SV_ExtendedRecordClientConnect(int client) {
 void SV_ExtendedRecordDropClient(int client) {
     // Drop the client only if he isn't already dropped (so that the reset won't be called multiple times while the client goes into CS_ZOMBIE)
     if ( !( (sv_interframe[FEATURE_PLAYERID].value[client] == featureDefaultValue) | isnan(sv_interframe[FEATURE_PLAYERID].value[client]) | SV_IsBot(client) ) ) {
+        // Recompute the number of connected human players
+        sv_oacshumanplayers = SV_CountPlayers();
+    
         // Commit the last interframe for that client before he gets totally disconnected
         SV_ExtendedRecordWriteValues(client);
         // Reinit the values for that client
@@ -130,6 +137,9 @@ void SV_ExtendedRecordWriteValues(int client) {
     fileHandle_t	file;
     char out[MAX_STRING_CSV];
     int i, startclient, endclient;
+    
+    if ( sv_oacshumanplayers < sv_oacsMinPlayers->integer ) // if we are below the minimum number of human players, we just break here
+        return;
 
     // If a client id is supplied, we will only write the JSON interframe for this client
     if (client >= 0) {
@@ -391,15 +401,15 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
     // Now we will initialize the value for every feature and every client or just one client if a clientid is supplied (else we may get a weird random value from an old memory zone that was not cleaned up)
     for (i=startclient;i<endclient;i++) {
         // If the client was disconnected, and not already reinitialized, we commit the last interframe and reset
-        if (svs.clients[i].state == CS_ZOMBIE && sv_interframe[FEATURE_PLAYERID].value[i] != 0) {
+        if ( (svs.clients[i].state == CS_ZOMBIE) && !( (sv_interframe[FEATURE_PLAYERID].value[i] == featureDefaultValue) | isnan(sv_interframe[FEATURE_PLAYERID].value[i]) ) ) {
             SV_ExtendedRecordDropClient(i);
         // Else if the client is not already fully connected in the game, we just skip this client
         } else if ( svs.clients[i].state < CS_ACTIVE ) {
 			continue;
-        // Avoid saving empty interframes of not yet fully connected players, bots nor spectators
-        } else if ( SV_IsBot(i) | SV_IsSpectator(i) ) {
+        // Avoid updating bots
+        } else if ( SV_IsBot(i) ) {
             continue;
-        }
+        } // Note: we do update spectators and players even when below the number of required human players, but we just don't save them (see SV_ExtendedRecordWriteValues()). This allows to always have fresh values (eg: reactiontime won't get too huge).
 
         // Updating values: you can add here your code to update a feature at the end of every frame and for every player
         //SV_ExtendedRecordSetFeatureValue(FEATURE_PLAYERID, i, i);
@@ -678,6 +688,25 @@ qboolean SV_IsSpectator(int client) {
     } else {
         return qfalse;
     }
+}
+
+// Count the number of connected players
+int SV_CountPlayers(void) {
+    int i, count;
+
+    count = 0;
+    for (i=0;i<sv_maxclients->integer;i++) {
+        // If the slot is empty, we skip
+        if ( svs.clients[i].state < CS_CONNECTED ) {
+			continue;
+        // or if it's a bot, we also skip
+        } else if ( SV_IsBot(i) ) {
+            continue;
+        }
+        count++; // else, it's a human player, we add him to the count
+    }
+    
+    return count;
 }
 
 // Return a random number between min and max, with more variability than a simple (rand() % (max-min)) + min

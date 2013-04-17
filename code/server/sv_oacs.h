@@ -94,11 +94,12 @@ typedef struct playerstable_s
 //extern feature_t interframe[FEATURES_COUNT];
 
 // Cvars to configure OACS behavior
-extern cvar_t  *sv_oacsEnable;
-extern cvar_t  *sv_oacsPlayersTableEnable;
-extern cvar_t  *sv_oacsTypesFile;
-extern cvar_t  *sv_oacsDataFile;
-extern cvar_t  *sv_oacsPlayersTable;
+extern cvar_t  *sv_oacsEnable; // enable the extended logging facility?
+extern cvar_t  *sv_oacsPlayersTableEnable; // enable the extended player identification logging?
+extern cvar_t  *sv_oacsTypesFile; // where to save the features types
+extern cvar_t  *sv_oacsDataFile; // where to save the features data
+extern cvar_t  *sv_oacsPlayersTable; // where to save the players table (if enabled)
+extern cvar_t  *sv_oacsMinPlayers; // minimum number of human players required to begin logging data
 
 // OACS extended recording variables (necessary for functionning)
 feature_t sv_interframe[FEATURES_COUNT];
@@ -106,6 +107,7 @@ feature_t sv_previnterframe[FEATURES_COUNT]; // previous interframe
 qboolean sv_interframeModified[MAX_CLIENTS]; // was the current interframe modified from the previous one?
 playerstable_t sv_playerstable; // extended player identification data (we only need to store one in memory at a time, since we only need it at client connection)
 char *sv_playerstable_keys; // key names, edit this (in sv_oacs.c) if you want to add more infos in the playerstable
+int sv_oacshumanplayers; // oacs implementation of g_humanplayers (but we also count privateclients too!)
 
 // Functions
 void SV_ExtendedRecordInit(void);
@@ -131,4 +133,5 @@ void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, i
 qboolean FS_IsFileEmpty(char* filename);
 qboolean SV_IsBot(int client);
 qboolean SV_IsSpectator(int client);
+int SV_CountPlayers(void);
 int rand_range(int min, int max);
