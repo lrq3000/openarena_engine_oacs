@@ -46,6 +46,8 @@ cvar_t  *sv_oacsDataFile;
 cvar_t  *sv_oacsPlayersTable;
 cvar_t  *sv_oacsMinPlayers;
 cvar_t  *sv_oacsLabelPassword;
+cvar_t *sv_oacsMaxPing;
+cvar_t *sv_oacsMaxLastPacketTime;
 
 char *sv_playerstable_keys = "playerid,playerip,playerguid,timestamp,datetime,playername"; // key names, edit this if you want to add more infos in the playerstable
 
@@ -169,10 +171,14 @@ void SV_ExtendedRecordWriteValues(int client) {
     }
 
     for (i=startclient;i<endclient;i++) {
-		if ( (svs.clients[i].state < CS_ACTIVE) )
+		if ( (svs.clients[i].state < CS_ACTIVE) ) {
 			continue;
-        else if ( SV_IsBot(i) | SV_IsSpectator(i) ) // avoid saving empty interframes of not yet fully connected players, bots nor spectators
+        } else if ( SV_IsBot(i) | SV_IsSpectator(i) ) { // avoid saving empty interframes of not yet fully connected players, bots nor spectators
             continue;
+        } else if ( ( (svs.time - svs.clients[client].lastPacketTime) > sv_oacsMaxLastPacketTime->integer) || (svs.clients[client].ping > sv_oacsMaxPing->integer) || // drop the last interframe(s) if the player is lagging (we don't want to save extreme values for reaction time and such stuff just because the player is flying in the air, waiting for the connection to stop lagging)
+                    ( (svs.clients[client].netchan.outgoingSequence - svs.clients[client].deltaMessage) >= (PACKET_BACKUP - 3) ) ) { // client hasn't gotten a good message through in a long time
+            continue;
+        }
 
         SV_ExtendedRecordFeaturesToCSV(out, MAX_STRING_CSV, sv_interframe, 2, i);
 

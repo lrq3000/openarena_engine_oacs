@@ -839,6 +839,8 @@ void SV_Init (void)
     sv_oacsPlayersTable = Cvar_Get ("sv_oacsPlayersTable", "oacs/playerstable.txt", CVAR_ARCHIVE );
     sv_oacsMinPlayers = Cvar_Get ("sv_oacsMinPlayers", "1", CVAR_ARCHIVE );
     sv_oacsLabelPassword = Cvar_Get ("sv_oacsLabelPassword", "", CVAR_TEMP );
+    sv_oacsMaxPing = Cvar_Get ("sv_oacsMaxPing", "700", CVAR_ARCHIVE );
+    sv_oacsMaxLastPacketTime = Cvar_Get ("sv_oacsMaxLastPacketTime", "10000", CVAR_ARCHIVE );
 
 	// initialize bot cvars so they are listed and can be set before loading the botlib
 	SV_BotInitCvars();

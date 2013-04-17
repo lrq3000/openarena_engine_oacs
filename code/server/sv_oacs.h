@@ -101,6 +101,8 @@ extern cvar_t  *sv_oacsDataFile; // where to save the features data
 extern cvar_t  *sv_oacsPlayersTable; // where to save the players table (if enabled)
 extern cvar_t  *sv_oacsMinPlayers; // minimum number of human players required to begin logging data
 extern cvar_t  *sv_oacsLabelPassword; // password necessary for a player to label himself
+extern cvar_t  *sv_oacsMaxPing; // max ping to accept interframes (above, the interframe will be dropped until the ping goes down)
+extern cvar_t  *sv_oacsMaxLastPacketTime; // max last packet time to accept interframes (above, the interframe will be dropped until the LastPacketTime goes down)
 
 // OACS extended recording variables (necessary for functionning)
 feature_t sv_interframe[FEATURES_COUNT];
