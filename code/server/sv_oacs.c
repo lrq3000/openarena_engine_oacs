@@ -654,7 +654,7 @@ qboolean SV_IsBot(int client) {
     entity = SV_GentityNum(client); // Get entity (of this player) object
     
     // Proceed only if the client is not a bot
-    if (entity->r.svFlags & SVF_BOT) {
+    if ( (entity->r.svFlags & SVF_BOT) | (svs.clients[client].netchan.remoteAddress.type == NA_BOT) ) {
         return qtrue;
     } else {
         return qfalse;
