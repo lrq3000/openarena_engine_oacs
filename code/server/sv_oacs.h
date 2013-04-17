@@ -83,7 +83,7 @@ typedef struct interframe_s
 typedef struct playerstable_s
 {
     double playerid;
-    char *ip;
+    char ip[NET_ADDRSTRMAXLEN];
     char *guid;
     double timestamp;
     char datetime[MAX_STRING_CSV];

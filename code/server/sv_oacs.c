@@ -464,7 +464,8 @@ void SV_ExtendedRecordPlayersTableInit(int client) {
     sv_playerstable.playerid = sv_interframe[FEATURE_PLAYERID].value[client];
 
     // Set IP
-    sv_playerstable.ip = Info_ValueForKey( cl->userinfo, "ip" );
+    //sv_playerstable.ip = Info_ValueForKey( cl->userinfo, "ip" ); // alternative way to get the ip, from the userinfo string
+    Q_strncpyz(sv_playerstable.ip, NET_AdrToString(cl->netchan.remoteAddress), MAX_STRING_CHARS); // reliable way to get the client's ip adress
     //snprintf(sv_playerstable.ip, MAX_STRING_CHARS, "%i.%i.%i.%i", cl->netchan.remoteAddress.ip[0], cl->netchan.remoteAddress.ip[1], cl->netchan.remoteAddress.ip[2], cl->netchan.remoteAddress.ip[3]);
 
     // Set GUID
