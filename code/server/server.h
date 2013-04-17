@@ -415,6 +415,13 @@ qboolean	SV_inPVS (const vec3_t p1, const vec3_t p2);
 void SV_GameSendServerCommand( int clientNum, const char *text );
 
 //
+// sv_oacs.c
+//
+void SV_ExtendedRecordSetCheater_f( void );
+void SV_ExtendedRecordSetCheaterFromClient_f( client_t *cl );
+void SV_ExtendedRecordSetHonestFromClient_f( client_t *cl );
+
+//
 // sv_demo.c
 //
 void SV_DemoStartRecord(void);

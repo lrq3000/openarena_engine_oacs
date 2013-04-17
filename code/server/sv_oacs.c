@@ -45,6 +45,7 @@ cvar_t  *sv_oacsTypesFile;
 cvar_t  *sv_oacsDataFile;
 cvar_t  *sv_oacsPlayersTable;
 cvar_t  *sv_oacsMinPlayers;
+cvar_t  *sv_oacsLabelPassword;
 
 char *sv_playerstable_keys = "playerid,playerip,playerguid,timestamp,datetime,playername"; // key names, edit this if you want to add more infos in the playerstable
 
@@ -86,6 +87,7 @@ void SV_ExtendedRecordClientConnect(int client) {
         sv_oacshumanplayers = SV_CountPlayers();
     
         // Init the values for this client (like playerid, etc.)
+        SV_ExtendedRecordInterframeInit(client);
         SV_ExtendedRecordInterframeInitValues(client);
 
         // If the admin is willing to save extended identification informations
@@ -381,6 +383,8 @@ void SV_ExtendedRecordInterframeInitValues(int client) {
         sv_interframe[FEATURE_SVTIME].value[client] = sv.time;
         // FrameRepeat: number of times a frame was repeated (1 = one frame, it was not repeated)
         sv_interframe[FEATURE_FRAMEREPEAT].value[client] = 1;
+        // Label: by default, the player is honest. The player is labeled as a cheater only under supervision of the admin, to grow the data file with anomalous examples.
+        sv_interframe[LABEL_CHEATER].value[client] = 0;
     }
 }
 
@@ -414,9 +418,8 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
         // Updating values: you can add here your code to update a feature at the end of every frame and for every player
         //SV_ExtendedRecordSetFeatureValue(FEATURE_PLAYERID, i, i);
         SV_ExtendedRecordSetFeatureValue(FEATURE_TIMESTAMP, time(NULL), i);
-        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, 0, i);
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, rand_range(0,1), i);
         SV_ExtendedRecordSetFeatureValue(FEATURE_ARMOR, 0, i);
-        SV_ExtendedRecordSetFeatureValue(LABEL_CHEATER, rand_range(0,1), i);
         
         // Update delta features (values that need to be computed only in difference with the previous interframe when there's a change)
         // Note: you should only update those features at the end, because you WANT to make sure that any change to any modifier feature already happened, so that we know for sure that the interframe will be committed or not.
@@ -718,4 +721,94 @@ int rand_range(int min, int max) {
     retval = ( (double) rand() / (double)RAND_MAX * (max-min+1) ) + min;
 
     return retval;
+}
+
+//
+// COMMANDS
+//
+
+// Set the cheater label for a client
+void SV_ExtendedRecordSetCheater( int client, int label ) {
+    // Checking for sane values
+    if ( (client < 0) || (client > sv_maxclients->integer) ) {
+        Com_Printf("OACS: SV_ExtendedRecordSetCheater() Invalid arguments\n");
+        return;
+    }
+
+    if ( label < 0 ) {
+        Com_Printf("Label for player %i: %.0f\n", client, sv_interframe[LABEL_CHEATER].value[client]);
+    } else {
+        // Set the label for this client
+        SV_ExtendedRecordSetFeatureValue(LABEL_CHEATER, label, client);
+    }
+}
+
+// Server-side command to set a client's cheater label
+// cheater <client> <label> where label is 0 for honest players, and >= 1 for cheaters
+void SV_ExtendedRecordSetCheater_f( void ) {
+    // Need at least one argument to proceed (the first argument is the command, so min = 2)
+    if ( Cmd_Argc() < 2) {
+        Com_Printf("Invalid arguments. Usage: cheater <client> [label] where label is 0 for honest players, and >= 1 for cheaters. If no label, will show the current value for the player.\n");
+        return;
+    }
+
+    // If only one argument is given
+    if ( Cmd_Argc() == 2) {
+        // Show the cheater label for the specified client
+        SV_ExtendedRecordSetCheater( atoi(Cmd_Argv(1)), -1 );
+    } else {
+        // Set cheater label
+        SV_ExtendedRecordSetCheater( atoi(Cmd_Argv(1)), atoi(Cmd_Argv(2)) );
+    }
+    
+}
+
+// Client-side command to declare being a cheater
+// Note: client needs a password to use this command
+// Note2: the client can optionally set the value of the label >= 1, this will then represent a kind of cheat
+void SV_ExtendedRecordSetCheaterFromClient_f( client_t *cl ) {
+    int client;
+
+    // Get the client id
+    client = cl - svs.clients;
+
+    if ( Cmd_Argc() < 2) // need at least the password
+        return;
+
+    if ( !strlen(sv_oacsLabelPassword->string) || Q_stricmp(Cmd_Argv(1), sv_oacsLabelPassword->string) ) {
+        Com_Printf("OACS: Client tried to declare being cheater: Bad label password from %s\n", NET_AdrToString(cl->netchan.remoteAddress));
+        return;
+    }
+
+    if ( Cmd_Argc() >= 3) { // type of cheat was given
+        if ( atoi(Cmd_Argv(2)) > 0 ) { // accept only if it's a cheat type (0 == honest, >= 1 == cheat)
+            Com_Printf("OACS: Client %i declares being cheater with label %i\n", client, atoi(Cmd_Argv(2)));
+            SV_ExtendedRecordSetCheater(client, atoi(Cmd_Argv(2)));
+        } else {
+            Com_Printf("OACS: Client tried to declare being cheater: Bad cheat label from %s: %i\n", NET_AdrToString(cl->netchan.remoteAddress), atoi(Cmd_Argv(2)));
+        }
+    } else {
+        Com_Printf("OACS: Client %i declares being cheater with label 1\n", client);
+        SV_ExtendedRecordSetCheater(client, 1);
+    }
+}
+
+// Client-side command to declare being a honest player
+// Note: client needs a password to use this command
+void SV_ExtendedRecordSetHonestFromClient_f( client_t *cl ) {
+    int client;
+
+    // Get the client id
+    client = cl - svs.clients;
+
+    if ( Cmd_Argc() < 2) // need at least the password
+        return;
+
+    if ( !strlen(sv_oacsLabelPassword->string) || Q_stricmp(Cmd_Argv(1), sv_oacsLabelPassword->string) ) {
+        Com_Printf("OACS: Client tried to declare being honest: Bad label password from %s\n", NET_AdrToString(cl->netchan.remoteAddress));
+        return;
+    }
+
+    Com_Printf("OACS: Client %i declares being honest\n", client);
+    SV_ExtendedRecordSetCheater(client, 0);
 }

@@ -1548,6 +1548,8 @@ static ucmd_t ucmds[] = {
 	{"nextdl", SV_NextDownload_f},
 	{"stopdl", SV_StopDownload_f},
 	{"donedl", SV_DoneDownload_f},
+    {"cheater", SV_ExtendedRecordSetCheaterFromClient_f},
+    {"honest", SV_ExtendedRecordSetHonestFromClient_f},
 
 #ifdef USE_VOIP
 	{"voip", SV_Voip_f},

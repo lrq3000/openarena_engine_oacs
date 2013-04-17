@@ -1496,6 +1496,8 @@ void SV_AddOperatorCommands( void ) {
 	Cmd_AddCommand("bandel", SV_BanDel_f);
 	Cmd_AddCommand("exceptdel", SV_ExceptDel_f);
 	Cmd_AddCommand("flushbans", SV_FlushBans_f);
+    
+    Cmd_AddCommand ("cheater", SV_ExtendedRecordSetCheater_f);
 
 	Cmd_AddCommand ("demo_record", SV_Demo_Record_f);
 	Cmd_AddCommand ("demo_play", SV_Demo_Play_f);

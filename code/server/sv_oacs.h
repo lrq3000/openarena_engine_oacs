@@ -100,6 +100,7 @@ extern cvar_t  *sv_oacsTypesFile; // where to save the features types
 extern cvar_t  *sv_oacsDataFile; // where to save the features data
 extern cvar_t  *sv_oacsPlayersTable; // where to save the players table (if enabled)
 extern cvar_t  *sv_oacsMinPlayers; // minimum number of human players required to begin logging data
+extern cvar_t  *sv_oacsLabelPassword; // password necessary for a player to label himself
 
 // OACS extended recording variables (necessary for functionning)
 feature_t sv_interframe[FEATURES_COUNT];
@@ -135,3 +136,4 @@ qboolean SV_IsBot(int client);
 qboolean SV_IsSpectator(int client);
 int SV_CountPlayers(void);
 int rand_range(int min, int max);
+void SV_ExtendedRecordSetCheater( int client, int label );
