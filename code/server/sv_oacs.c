@@ -45,7 +45,7 @@ cvar_t  *sv_oacsTypesFile;
 cvar_t  *sv_oacsDataFile;
 cvar_t  *sv_oacsPlayersTable;
 
-char *playerstable_keys = "playerid,ip,guid,timestamp,datetime,nickname"; // key names, edit this if you want to add more infos in the playerstable
+char *sv_playerstable_keys = "playerid,ip,guid,timestamp,datetime,nickname"; // key names, edit this if you want to add more infos in the playerstable
 
 // Initialize the interframe structure at the start of the server
 // Called only once, at the launching of the server
@@ -87,10 +87,10 @@ void SV_ExtendedRecordClientConnect(int client) {
         // If the admin is willing to save extended identification informations
         if (sv_oacsPlayersTableEnable->integer == 1) {
             // Init the playerstable entry of this client (extended player identification informations)
-            SV_ExtendedRecordPlayerTableInit(client);
+            SV_ExtendedRecordPlayersTableInit(client);
             
             // Write down the entry into the players table file
-            SV_ExtendedRecordWritePlayerTable(client);
+            SV_ExtendedRecordWritePlayersTable(client);
         }
     }
 }
@@ -176,7 +176,7 @@ void SV_ExtendedRecordWriteValues(int client) {
 }
 
 // Write the values of the current players table entry (extended identification informations for one player) in CSV format into a file
-void SV_ExtendedRecordWritePlayerTable(int client) {
+void SV_ExtendedRecordWritePlayersTable(int client) {
     fileHandle_t	file;
     char out[MAX_STRING_CSV];
 
@@ -190,11 +190,11 @@ void SV_ExtendedRecordWritePlayerTable(int client) {
     // If there is no data file or it is empty, we first output the headers (features keys/names)
     if ( FS_FileExists( sv_oacsPlayersTable->string ) == qfalse || (FS_IsFileEmpty( sv_oacsPlayersTable->string ) == qtrue) ) {
         // Output the headers into the text file (only if there's at least one client connected!)
-        FS_Write(va("%s\n", playerstable_keys), strlen(playerstable_keys)+strlen("\n"), file); // write the text (with a line return)
+        FS_Write(va("%s\n", sv_playerstable_keys), strlen(sv_playerstable_keys)+strlen("\n"), file); // write the text (with a line return)
         FS_Flush( file ); // update the content of the file
     }
 
-    SV_ExtendedRecordPlayerTableToCSV(out, MAX_STRING_CSV, playertable);
+    SV_ExtendedRecordPlayersTableToCSV(out, MAX_STRING_CSV, sv_playerstable);
 
     // Output into the text file (only if there's at least one client connected!)
     FS_Write(va("%s\n", out), strlen(out)+strlen("\n"), file); //free(out); // write the text (with a line return) and free it
@@ -444,33 +444,33 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
 
 // Setup the values for the players table entry of one client (these are extended identification informations, useful at prediction to do a post action like kick or ban, or just to report with the proper name and ip)
 // Edit here if you want to add more identification informations
-void SV_ExtendedRecordPlayerTableInit(int client) {
+void SV_ExtendedRecordPlayersTableInit(int client) {
     client_t	*cl;
 
     // Get the client object
     cl = &svs.clients[client];
 
     // Set playerid (the random server-side uuid we set for each player, it should be computed prior calling this function, when initializing the sv_interframe)
-    playertable.playerid = sv_interframe[FEATURE_PLAYERID].value[client];
+    sv_playerstable.playerid = sv_interframe[FEATURE_PLAYERID].value[client];
 
     // Set IP
-    playertable.ip = Info_ValueForKey( cl->userinfo, "ip" );
-    //snprintf(playertable.ip, MAX_STRING_CHARS, "%i.%i.%i.%i", cl->netchan.remoteAddress.ip[0], cl->netchan.remoteAddress.ip[1], cl->netchan.remoteAddress.ip[2], cl->netchan.remoteAddress.ip[3]);
+    sv_playerstable.ip = Info_ValueForKey( cl->userinfo, "ip" );
+    //snprintf(sv_playerstable.ip, MAX_STRING_CHARS, "%i.%i.%i.%i", cl->netchan.remoteAddress.ip[0], cl->netchan.remoteAddress.ip[1], cl->netchan.remoteAddress.ip[2], cl->netchan.remoteAddress.ip[3]);
 
     // Set GUID
-    playertable.guid = Info_ValueForKey( cl->userinfo, "cl_guid" );
+    sv_playerstable.guid = Info_ValueForKey( cl->userinfo, "cl_guid" );
 
     // Set timestamp
-    playertable.timestamp = time(NULL);
+    sv_playerstable.timestamp = time(NULL);
 
     // Human readable date time (only for human operators when reviewing the playerstable, else it's totally useless for the cheat detection)
     // Note: this is UTC time
 	time_t  utcnow = time(NULL);
 	struct tm tnow = *gmtime(&utcnow);
-	strftime( playertable.datetime, MAX_STRING_CSV, "%Y-%m-%d %H:%M:%S", &tnow );
+	strftime( sv_playerstable.datetime, MAX_STRING_CSV, "%Y-%m-%d %H:%M:%S", &tnow );
 
     // Set nickname
-    playertable.nickname = cl->name;
+    sv_playerstable.nickname = cl->name;
 }
 
 /*
@@ -536,32 +536,32 @@ char *SV_ExtendedRecordFeaturesToCSV(char *csv_string, int max_string_size, feat
     return csv_string;
 }
 
-// Convert a playertable_t entry into a CSV string
-char *SV_ExtendedRecordPlayerTableToCSV(char *csv_string, int max_string_size, playertable_t playertable) {
+// Convert a playerstable_t entry into a CSV string
+char *SV_ExtendedRecordPlayersTableToCSV(char *csv_string, int max_string_size, playerstable_t playerstable) {
     int length = 0; // willl store the current cursor position at the end of the string, so that we can quickly append without doing a strlen() everytime which would be O(n^2) instead of O(n)
 
     // append playerid
-    length += snprintf(csv_string+length, max_string_size, "%.0f", playertable.playerid);
+    length += snprintf(csv_string+length, max_string_size, "%.0f", playerstable.playerid);
 
     // append ip
     length += snprintf(csv_string+length, max_string_size, "%s", ","); // append a comma
-    length += snprintf(csv_string+length, max_string_size, "\"%s\"", playertable.ip);
+    length += snprintf(csv_string+length, max_string_size, "\"%s\"", playerstable.ip);
 
     // append guid
     length += snprintf(csv_string+length, max_string_size, "%s", ",");
-    length += snprintf(csv_string+length, max_string_size, "\"%s\"", playertable.guid);
+    length += snprintf(csv_string+length, max_string_size, "\"%s\"", playerstable.guid);
 
     // append timestamp
     length += snprintf(csv_string+length, max_string_size, "%s", ",");
-    length += snprintf(csv_string+length, max_string_size, "%0.f", playertable.timestamp);
+    length += snprintf(csv_string+length, max_string_size, "%0.f", playerstable.timestamp);
 
     // append human-readable date time
     length += snprintf(csv_string+length, max_string_size, "%s", ",");
-    length += snprintf(csv_string+length, max_string_size, "\"%s\"", playertable.datetime);
+    length += snprintf(csv_string+length, max_string_size, "\"%s\"", playerstable.datetime);
 
     // append nick name
     length += snprintf(csv_string+length, max_string_size, "%s", ",");
-    length += snprintf(csv_string+length, max_string_size, "\"%s\"", playertable.nickname); // wrap inside quotes to avoid breaking if there are spaces or special characters in the nickname (quotes are filtered by the engine anyway, since the engine also use quotes to wrap variables content)
+    length += snprintf(csv_string+length, max_string_size, "\"%s\"", playerstable.nickname); // wrap inside quotes to avoid breaking if there are spaces or special characters in the nickname (quotes are filtered by the engine anyway, since the engine also use quotes to wrap variables content)
     
     return csv_string;
 }
