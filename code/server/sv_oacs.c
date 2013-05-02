@@ -49,7 +49,7 @@ cvar_t  *sv_oacsLabelPassword;
 cvar_t *sv_oacsMaxPing;
 cvar_t *sv_oacsMaxLastPacketTime;
 
-char *sv_playerstable_keys = "playerid,playerip,playerguid,timestamp,datetime,playername"; // key names, edit this if you want to add more infos in the playerstable
+char *sv_playerstable_keys = "playerid,playerip,playerguid,connection_timestamp,connection_datetime,playername"; // key names, edit this if you want to add more infos in the playerstable
 
 // Initialize the interframe structure at the start of the server
 // Called only once, at the launching of the server
@@ -385,8 +385,8 @@ void SV_ExtendedRecordInterframeInitValues(int client) {
         // Set unique player id (we want this id to be completely generated serverside and without any means to tamper it clientside) - we don't care that the id change for the same player when he reconnects, since anyway the id will always link to the player's ip and guid using the playerstable
         //char tmp[MAX_STRING_CHARS] = ""; snprintf(tmp, MAX_STRING_CHARS, "%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL));
         sv_interframe[FEATURE_PLAYERID].value[client] = atof( va("%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL)) ); // TODO: use a real UUID/GUID here (for the moment we simply use the timestamp in seconds + a random number, this should be enough for now to ensure the uniqueness of all the players) - do NOT use ioquake3 GUID since it can be spoofed (there's no centralized authorization system!)
-        // Server time
-        sv_interframe[FEATURE_SVTIME].value[client] = sv.time;
+        // Server time (serverStatic_t time, which is always strictly increasing)
+        sv_interframe[FEATURE_SVTIME].value[client] = svs.time;
         // FrameRepeat: number of times a frame was repeated (1 = one frame, it was not repeated)
         sv_interframe[FEATURE_FRAMEREPEAT].value[client] = 1;
         // Label: by default, the player is honest. The player is labeled as a cheater only under supervision of the admin, to grow the data file with anomalous examples.
