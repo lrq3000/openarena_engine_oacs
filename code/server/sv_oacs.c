@@ -141,6 +141,7 @@ void SV_ExtendedRecordWriteValues(int client) {
     fileHandle_t	file;
     char out[MAX_STRING_CSV];
     int i, startclient, endclient;
+    playerState_t	*ps;
     
     if ( sv_oacshumanplayers < sv_oacsMinPlayers->integer ) // if we are below the minimum number of human players, we just break here
         return;
@@ -171,12 +172,15 @@ void SV_ExtendedRecordWriteValues(int client) {
     }
 
     for (i=startclient;i<endclient;i++) {
+        ps = SV_GameClientNum( i );
 		if ( (svs.clients[i].state < CS_ACTIVE) ) {
 			continue;
         } else if ( SV_IsBot(i) | SV_IsSpectator(i) ) { // avoid saving empty interframes of not yet fully connected players, bots nor spectators
             continue;
         } else if ( ( (svs.time - svs.clients[client].lastPacketTime) > sv_oacsMaxLastPacketTime->integer) || (svs.clients[client].ping > sv_oacsMaxPing->integer) || // drop the last interframe(s) if the player is lagging (we don't want to save extreme values for reaction time and such stuff just because the player is flying in the air, waiting for the connection to stop lagging)
                     ( (svs.clients[client].netchan.outgoingSequence - svs.clients[client].deltaMessage) >= (PACKET_BACKUP - 3) ) ) { // client hasn't gotten a good message through in a long time
+            continue;
+        } else if ( ps->pm_type != PM_NORMAL ) { // save only if the player is playing in a normal state, not in a special state where he can't play like dead or intermission TODO: maybe add PM_DEAD too?
             continue;
         }
 
