@@ -43,8 +43,9 @@ typedef enum {
     FEATURE_TIMESTAMP,
 
     // Human-specific features
-    FEATURE_SVTIME, // persistent/static server time (svs.time)
-    FEATURE_REACTIONTIME, // this is sv_time delta (difference between the last interframe and this one)
+    FEATURE_SVSTIME, // persistent/static server time (svs.time)
+    FEATURE_REACTIONTIME, // this is svs.time delta (difference between the last interframe and this one)
+    FEATURE_SVTIME, // non-persistent server time (sv.time), can be used to check when a new game starts
     FEATURE_LASTCOMMANDTIME, // ps->commandTime
     FEATURE_COMMANDTIME_REACTIONTIME,
     FEATURE_ANGLEINAFRAME, // abs(ps->viewangles[0] - prev_ps->viewangles[0]) + abs(ps->viewangles[1] - prev_ps->viewangles[1]) + abs(ps->viewangles[2] - prev_ps->viewangles[2]) // PITCH=0/YAW=1/ROLL=2 see q_shared.h
@@ -208,7 +209,9 @@ void SV_ExtendedRecordWriteValues(int client);
 void SV_ExtendedRecordWritePlayersTable(int client);
 void SV_ExtendedRecordInterframeInit(int client);
 void SV_ExtendedRecordInterframeInitValues(int client);
+double SV_ExtendedRecordInterframeInitValue(int client, int feature);
 void SV_ExtendedRecordInterframeUpdate(int client);
+void SV_ExtendedRecordInterframeUpdateValues(int client);
 void SV_ExtendedRecordPlayersTableInit(int client);
 //feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe);
 //cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues, int client);

@@ -25,10 +25,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 /* How to add a new feature:
 - Edit sv_oacs.h and add your new feature in the interframeIndex_t enum,
 - Edit sv_interframe_keys, sv_interframe_modifiers and sv_interframe_types and add your new feature in these arrays too (please specify the name of your feature in a comment!).
-- Edit the SV_ExtendedRecordInterframeInitValues() if you want to change the initial value (or you can set it in update, the default value is NAN),
-- Edit the SV_ExtendedRecordInterframeUpdate() function OR add your code anywhere else inside the ioquake3 code to update the feature's value on every frame, but then use the function SV_ExtendedRecordSetFeatureValue() to update the value of a feature!
-Note: ALWAYS use SV_ExtendedRecordSetFeatureValue() to change the value of a feature (_don't_ do it directly!), because this function manage if the interframe needs to be written and flushed into a file on change or not (if a feature is non-modifier).
-
+- Edit the SV_ExtendedRecordInterframeInitValue() (not InitValues()! Note the S) if you want to change the initial value (or you can set it in update, the default value is NAN),
+- Edit the SV_ExtendedRecordInterframeUpdateValues() function OR add your code anywhere else inside the ioquake3 code to update the feature's value on every frame, but then use the function SV_ExtendedRecordSetFeatureValue() to update the value of a feature!
+Note: ALWAYS use SV_ExtendedRecordSetFeatureValue() to update the value of a feature (_don't_ do it directly!), because this function manage if the interframe needs to be written and flushed into a file on change or not (if a feature is non-modifier). Exception is when you initialize the value of the feature, because you don't want to commit the initial interframe (which contains only default NaN values).
 */
 
 #include "server.h"
@@ -57,8 +56,9 @@ char *sv_interframe_keys[] = {
     "playerid",
     "timestamp",
 
-    "svtime",
+    "svstime",
     "reactiontime",
+    "svtime",
     "lastcommandtime",
     "commandtime_reactiontime",
     "angleinaframe",
@@ -137,8 +137,9 @@ int sv_interframe_types[] = {
     FEATURE_ID, // playerid
     FEATURE_ID, // timestamp
 
-    FEATURE_ID, // svtime
+    FEATURE_ID, // svstime
     FEATURE_HUMAN, // reactiontime
+    FEATURE_ID, // svtime
     FEATURE_METADATA, // lastcommandtime
     FEATURE_HUMAN, // commandtime_reactiontime
     FEATURE_HUMAN, // angleinaframe
@@ -216,8 +217,9 @@ qboolean sv_interframe_modifiers[] = {
     qtrue, // playerid
     qfalse, // timestamp
 
-    qfalse, // svtime
+    qfalse, // svstime
     qfalse, // reactiontime
+    qfalse, // svtime
     qtrue, // lastcommandtime
     qfalse, // commandtime_reactiontime
     qtrue, // angleinaframe
@@ -587,21 +589,43 @@ void SV_ExtendedRecordInterframeInit(int client) {
     }
 }
 
-// Set the initial values for some features
-// set here the default values you want for a feature if you want it to be different than 0 or NaN
-// Note: do not use SV_ExtendedRecordSetFeatureValue() here, just access directly sv_interframe
+// Set the initial values for some features, this function will call another one in order to set the correct value (this ease later modifications)
+// Note: do not use SV_ExtendedRecordSetFeatureValue() here, just access directly sv_interframe (you don't want to commit anything here)
 void SV_ExtendedRecordInterframeInitValues(int client) {
-    // Proceed only if the client is not a bot
-    if ( !SV_IsBot(client) ) {
-        // Set unique player id (we want this id to be completely generated serverside and without any means to tamper it clientside) - we don't care that the id change for the same player when he reconnects, since anyway the id will always link to the player's ip and guid using the playerstable
-        //char tmp[MAX_STRING_CHARS] = ""; snprintf(tmp, MAX_STRING_CHARS, "%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL));
-        sv_interframe[FEATURE_PLAYERID].value[client] = atof( va("%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL)) ); // TODO: use a real UUID/GUID here (for the moment we simply use the timestamp in seconds + a random number, this should be enough for now to ensure the uniqueness of all the players) - do NOT use ioquake3 GUID since it can be spoofed (there's no centralized authorization system!)
-        // Server time (serverStatic_t time, which is always strictly increasing)
-        sv_interframe[FEATURE_SVTIME].value[client] = svs.time;
-        // FrameRepeat: number of times a frame was repeated (1 = one frame, it was not repeated)
-        sv_interframe[FEATURE_FRAMEREPEAT].value[client] = 1;
-        // Label: by default, the player is honest. The player is labeled as a cheater only under supervision of the admin, to grow the data file with anomalous examples.
-        sv_interframe[LABEL_CHEATER].value[client] = 0;
+    int feature;
+
+    // Loop through all features and set a default value
+    for (feature=0;feature<FEATURES_COUNT;feature++) {
+        // Proceed only if the client is not a bot
+        if ( !SV_IsBot(client) ) {
+            sv_interframe[feature].value[client] = SV_ExtendedRecordInterframeInitValue(client, feature);
+        }
+    }
+}
+
+// Set the initial values for some features
+// This is a simple switch/case in order to ease modifications, just return the value you want for this feature
+// set here the default values you want for a feature if you want it to be different than 0 or NaN
+double SV_ExtendedRecordInterframeInitValue(int client, int feature) {
+    switch( feature ) {
+        case FEATURE_PLAYERID:
+            // Set unique player id (we want this id to be completely generated serverside and without any means to tamper it clientside) - we don't care that the id change for the same player when he reconnects, since anyway the id will always link to the player's ip and guid using the playerstable
+            //char tmp[MAX_STRING_CHARS] = ""; snprintf(tmp, MAX_STRING_CHARS, "%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL));
+            return atof( va("%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL)) ); // TODO: use a real UUID/GUID here (for the moment we simply use the timestamp in seconds + a random number, this should be enough for now to ensure the uniqueness of all the players) - do NOT use ioquake3 GUID since it can be spoofed (there's no centralized authorization system!)
+        case FEATURE_SVSTIME:
+            // Server time (serverStatic_t time, which is always strictly increasing)
+            return svs.time;
+        case FEATURE_SVTIME:
+            // Server time (non-persistant server time, can be used to check whether a new game is starting)
+            return sv.time;
+        case FEATURE_FRAMEREPEAT:
+            // FrameRepeat: number of times a frame was repeated (1 = one frame, it was not repeated)
+            return 1;
+        case LABEL_CHEATER:
+            // Label: by default, the player is honest. The player is labeled as a cheater only under supervision of the admin, to grow the data file with anomalous examples.
+            return 0;
+        default:
+            return featureDefaultValue;
     }
 }
 
@@ -631,25 +655,10 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
         } else if ( SV_IsBot(i) ) {
             continue;
         } // Note: we do update spectators and players even when below the number of required human players, but we just don't save them (see SV_ExtendedRecordWriteValues()). This allows to always have fresh values (eg: reactiontime won't get too huge).
+        // Ok this player is valid, we update the values
 
-        // Updating values: you can add here your code to update a feature at the end of every frame and for every player
-        //SV_ExtendedRecordSetFeatureValue(FEATURE_PLAYERID, i, i);
-        SV_ExtendedRecordSetFeatureValue(FEATURE_TIMESTAMP, time(NULL), i);
-        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, rand_range(0,1), i);
-        SV_ExtendedRecordSetFeatureValue(FEATURE_ARMOR, 0, i);
-        
-        // Update delta features (values that need to be computed only in difference with the previous interframe when there's a change)
-        // Note: you should only update those features at the end, because you WANT to make sure that any change to any modifier feature already happened, so that we know for sure that the interframe will be committed or not.
-
-        if (sv_interframeModified[i] == qtrue) {
-            // Update reaction time (sv.time delta) only if we have committed the last frame, because we want the difference (the delta) between the last move and the new one
-            SV_ExtendedRecordSetFeatureValue(FEATURE_REACTIONTIME, sv.time - sv_interframe[FEATURE_SVTIME].value[i], i);
-        }
-        
-        // We have to update SVTIME only after reaction time, and we also update it if it doesn't have any value (because we don't want that the first interframe of a player is set to the start of the server/map!)
-        if (sv_interframeModified[i] == qtrue || sv_interframe[FEATURE_SVTIME].value[i] == 0)
-            SV_ExtendedRecordSetFeatureValue(FEATURE_SVTIME, sv.time, i);
-            
+        // Update the features' values
+        SV_ExtendedRecordInterframeUpdateValues(i);
         
         // Check if the interframe is repeated or if it has changed since the previous one
         if (sv_interframeModified[i] == qtrue) { // it changed, and the previous one was already committed, so we just have to reset FRAMEREPEAT and the modified flag
@@ -659,17 +668,41 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
             sv_interframe[FEATURE_FRAMEREPEAT].value[i]++;
         }
 
-        /*
-        sv_interframe[FEATURE_PLAYERID].value[i] = rand() % 100;
-        sv_interframe[FEATURE_TIMESTAMP].value[i] = rand() % 100;
-        sv_interframe[FEATURE_FRAMENUMBER].value[i] = rand() % 100;
-        sv_interframe[FEATURE_FRAGSINAROW].value[i] = rand() % 100;
-        sv_interframe[FEATURE_ARMOR].value[i] = rand() % 100;
-        sv_interframe[FEATURE_FRAMEREPEAT].value[i]++;
-        sv_interframe[LABEL_CHEATER].value[i] = rand() % 2;
-        */
     }
 
+}
+
+// Set the updated values for all features
+// you can add here your code to update a feature at the end of every frame and for every player
+// Note: You need to update all the features! Either here in this function, or elsewhere in the ioquake3 code!
+// Note2: you should here use SV_ExtendedRecordSetFeatureValue() because you generally want to commit your variables when they are updated (if not, prefer to use a modifier = qfalse and still use the SetFeatureValue() function).
+// Note3: the order matters here, so that you can compute a feature only after another feature was computed.
+void SV_ExtendedRecordInterframeUpdateValues(int client) {
+    //== Updating normal features' values
+    // TIMESTAMP
+    SV_ExtendedRecordSetFeatureValue(FEATURE_TIMESTAMP, time(NULL), client);
+    // FRAGSINAROW
+    SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, rand_range(0,1), client);
+    // ARMOR
+    SV_ExtendedRecordSetFeatureValue(FEATURE_ARMOR, 0, client);
+
+    //== Update delta features (values that need to be computed only in difference with the previous interframe when there's a change, or after other features)
+    // Note: you should only update those features at the end, because you WANT to make sure that any change to any modifier feature already happened, so that we know for sure that the interframe will be committed or not.
+
+    // REACTIONTIME
+    if (sv_interframeModified[client] == qtrue) {
+        // Update reaction time (svs.time delta) only if we have committed the last frame, because we want the difference (the delta) between the last move and the new one
+        SV_ExtendedRecordSetFeatureValue(FEATURE_REACTIONTIME, svs.time - sv_interframe[FEATURE_SVSTIME].value[client], client);
+    }
+
+    // SVSTIME
+    // We have to update SVSTIME only after reaction time, and we also update it if it doesn't have any value (because we don't want that the first interframe of a player is set to the start of the server/map!)
+    if (sv_interframeModified[client] == qtrue || sv_interframe[FEATURE_SVSTIME].value[client] == 0)
+        SV_ExtendedRecordSetFeatureValue(FEATURE_SVSTIME, svs.time, client);
+    
+    // SVTIME
+    if (sv_interframeModified[client] == qtrue || sv_interframe[FEATURE_SVTIME].value[client] == 0)
+        SV_ExtendedRecordSetFeatureValue(FEATURE_SVTIME, sv.time, client);
 }
 
 // Setup the values for the players table entry of one client (these are extended identification informations, useful at prediction to do a post action like kick or ban, or just to report with the proper name and ip)
