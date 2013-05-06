@@ -24,8 +24,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 /* How to add a new feature:
 - Edit sv_oacs.h and add your new feature in the interframeIndex_t enum,
-- Edit the SV_ExtendedRecordInterframeInit() to add the initialization settings (key, type, modifier),
-- Edit the SV_ExtendedRecordInterframeInitValues() function OR add your code anywhere else inside the ioquake3 code to update the feature's value on every frame, but then use the function SV_ExtendedRecordSetFeatureValue() to update the value of a feature!
+- Edit sv_interframe_keys, sv_interframe_modifiers and sv_interframe_types and add your new feature in these arrays too (please specify the name of your feature in a comment!).
+- Edit the SV_ExtendedRecordInterframeInitValues() if you want to change the initial value (or you can set it in update, the default value is NAN),
+- Edit the SV_ExtendedRecordInterframeUpdate() function OR add your code anywhere else inside the ioquake3 code to update the feature's value on every frame, but then use the function SV_ExtendedRecordSetFeatureValue() to update the value of a feature!
 Note: ALWAYS use SV_ExtendedRecordSetFeatureValue() to change the value of a feature (_don't_ do it directly!), because this function manage if the interframe needs to be written and flushed into a file on change or not (if a feature is non-modifier).
 
 */
@@ -50,6 +51,244 @@ cvar_t *sv_oacsMaxPing;
 cvar_t *sv_oacsMaxLastPacketTime;
 
 char *sv_playerstable_keys = "playerid,playerip,playerguid,connection_timestamp,connection_datetime,playername"; // key names, edit this if you want to add more infos in the playerstable
+
+// names of the features, array of string keys to output in the typesfile and datafile
+char *sv_interframe_keys[] = {
+    "playerid",
+    "timestamp",
+
+    "svtime",
+    "reactiontime",
+    "lastcommandtime",
+    "commandtime_reactiontime",
+    "angleinaframe",
+    "lastmouseeventtime",
+    "mouseeventtime_reactiontime",
+    "movementdirection",
+    
+
+    "score",
+    "scoreacc",
+    "hits",
+    "hitsacc",
+    "death",
+    "deathacc",
+    "captures",
+    "capturesacc",
+    "impressivecount",
+    "impressivecountacc",
+    "excellentcount",
+    "excellentcountacc",
+	"defendcount",
+    "defendcountacc",
+	"assistcount",
+    "assistcountacc",
+	"fragcount",
+    "fragcountacc",
+    
+    "frags",
+    "fragsinarow",
+    
+    "damageeventcount",
+    "damageeventcountacc",
+    
+    "ducked",
+    "midair",
+    
+    "weapon",
+    "weaponstate",
+    "weaponinstanthit",
+    
+    "powerup_none",
+    "powerup_quad",
+    "powerup_battlesuit",
+    "powerup_haste",
+    "powerup_invisibility",
+    "powerup_regeneration",
+    "powerup_flight",
+#ifdef MISSIONPACK
+    "powerup_scout",
+    "powerup_guard",
+    "powerup_doubler",
+    "powerup_ammoregen",
+    "powerup_invulnerability",
+
+    "powerup_persistant_powerup",
+#endif
+
+    "hasflag",
+    "holyshit",
+    "rank",
+    "enemyhadflag",
+
+    "health",
+    "max_health",
+    "armor",
+    "speed",
+    "speedratio",
+    "damagecount",
+
+    "framerepeat",
+    "cheater"
+};
+
+// types of the features, will be outputted in the typesfile
+int sv_interframe_types[] = {
+    FEATURE_ID, // playerid
+    FEATURE_ID, // timestamp
+
+    FEATURE_ID, // svtime
+    FEATURE_HUMAN, // reactiontime
+    FEATURE_METADATA, // lastcommandtime
+    FEATURE_HUMAN, // commandtime_reactiontime
+    FEATURE_HUMAN, // angleinaframe
+    FEATURE_METADATA, // lastmouseeventtime
+    FEATURE_HUMAN, // mouseeventtime_reactiontime
+    FEATURE_HUMAN, // movementdirection
+
+    FEATURE_METADATA, // score
+    FEATURE_HUMAN, // scoreacc
+    FEATURE_METADATA, // hits
+    FEATURE_HUMAN, // hitsacc
+    FEATURE_METADATA, // death
+    FEATURE_HUMAN, // deathacc
+    FEATURE_METADATA, // captures
+    FEATURE_HUMAN, // capturesacc
+    FEATURE_METADATA, // impressivecount
+    FEATURE_HUMAN, // impressivecountacc
+    FEATURE_METADATA, // excellentcount
+    FEATURE_HUMAN, // excellentcountacc
+	FEATURE_METADATA, // defendcount
+    FEATURE_HUMAN, // defendcountacc
+	FEATURE_METADATA, // assistcount
+    FEATURE_HUMAN, // assistcountacc
+	FEATURE_METADATA, // gauntletfragcount
+    FEATURE_HUMAN, // gauntletfragcountacc
+    
+    FEATURE_METADATA, // frags
+    FEATURE_HUMAN, // fragsinarow
+    
+    FEATURE_METADATA, // damagecount
+    FEATURE_HUMAN, // damageeventcountacc
+    
+    FEATURE_HUMAN, // ducked
+    FEATURE_HUMAN, // midair
+    
+    FEATURE_HUMAN, // weapon
+    FEATURE_HUMAN, // weaponstate
+    FEATURE_HUMAN, // weaponinstanthit
+    
+    FEATURE_HUMAN, // powerup_none
+    FEATURE_HUMAN, // powerup_quad
+    FEATURE_HUMAN, // powerup_battlesuit
+    FEATURE_HUMAN, // powerup_haste
+    FEATURE_HUMAN, // powerup_invisibility
+    FEATURE_HUMAN, // powerup_regeneration
+    FEATURE_HUMAN, // powerup_flight
+#ifdef MISSIONPACK
+    FEATURE_HUMAN, // powerup_scout
+    FEATURE_HUMAN, // powerup_guard
+    FEATURE_HUMAN, // powerup_doubler
+    FEATURE_HUMAN, // powerup_ammoregen
+    FEATURE_HUMAN, // powerup_invulnerability
+
+    FEATURE_HUMAN, // powerup_persistant_powerup
+#endif
+
+    FEATURE_HUMAN, // hasflag
+    FEATURE_HUMAN, // holyshit
+    FEATURE_HUMAN, // rank
+    FEATURE_HUMAN, // enemyhadflag
+
+    FEATURE_METADATA, // health
+    FEATURE_METADATA, // max_health
+    FEATURE_GAMESPECIFIC, // armor
+    FEATURE_METADATA, // speed
+    FEATURE_GAMESPECIFIC, // speedratio
+    FEATURE_GAMESPECIFIC, // damagecount
+
+    FEATURE_METAINTERFRAME, // framerepeat
+    FEATURE_LABEL // cheater
+};
+
+// modifiers for the features, array of boolean that specifies if a feature should commit the interframe on change or not
+qboolean sv_interframe_modifiers[] = {
+    qtrue, // playerid
+    qfalse, // timestamp
+
+    qfalse, // svtime
+    qfalse, // reactiontime
+    qtrue, // lastcommandtime
+    qfalse, // commandtime_reactiontime
+    qtrue, // angleinaframe
+    qtrue, // lastmouseeventtime
+    qfalse, // mouseeventtime_reactiontime
+    qtrue, // movementdirection
+
+    qtrue, // score
+    qtrue, // scoreacc
+    qtrue, // hits
+    qtrue, // hitsacc
+    qtrue, // death
+    qtrue, // deathacc
+    qtrue, // captures
+    qtrue, // capturesacc
+    qtrue, // impressivecount
+    qtrue, // impressivecountacc
+    qtrue, // excellentcount
+    qtrue, // excellentcountacc
+	qtrue, // defendcount
+    qtrue, // defendcountacc
+	qtrue, // assistcount
+    qtrue, // assistcountacc
+	qtrue, // gauntletfragcount
+    qtrue, // gauntletfragcountacc
+    
+    qtrue, // frags
+    qtrue, // fragsinarow
+    
+    qtrue, // damagecount
+    qtrue, // damageeventcountacc
+    
+    qtrue, // ducked
+    qtrue, // midair
+    
+    qtrue, // weapon
+    qtrue, // weaponstate
+    qtrue, // weaponinstanthit
+    
+    qtrue, // powerup_none
+    qtrue, // powerup_quad
+    qtrue, // powerup_battlesuit
+    qtrue, // powerup_haste
+    qtrue, // powerup_invisibility
+    qtrue, // powerup_regeneration
+    qtrue, // powerup_flight
+#ifdef MISSIONPACK
+    qtrue, // powerup_scout
+    qtrue, // powerup_guard
+    qtrue, // powerup_doubler
+    qtrue, // powerup_ammoregen
+    qtrue, // powerup_invulnerability
+
+    qtrue, // powerup_persistant_powerup
+#endif
+
+    qtrue, // hasflag
+    qtrue, // holyshit
+    qtrue, // rank
+    qtrue, // enemyhadflag
+
+    qtrue, // health
+    qtrue, // max_health
+    qtrue, // armor
+    qtrue, // speed
+    qtrue, // speedratio
+    qtrue, // damagecount
+
+    qfalse, // framerepeat
+    qtrue // cheater
+};
 
 // Initialize the interframe structure at the start of the server
 // Called only once, at the launching of the server
@@ -316,46 +555,14 @@ void SV_ExtendedRecordInterframeInit(int client) {
     
     Com_Printf("OACS: Initializing the features for client %i\n", client);
 
+    // at startup (no client), initialize the key name, type and modifier of each variable
     if (client < 0) {
-        // PlayerID
-        sv_interframe[FEATURE_PLAYERID].key = "playerid";
-        sv_interframe[FEATURE_PLAYERID].type = FEATURE_ID;
-        sv_interframe[FEATURE_PLAYERID].modifier = qtrue;
-        
-        // Timestamp
-        sv_interframe[FEATURE_TIMESTAMP].key = "timestamp";
-        sv_interframe[FEATURE_TIMESTAMP].type = FEATURE_ID;
-        sv_interframe[FEATURE_TIMESTAMP].modifier = qfalse;
-        
-        // SVTime (server time, serves as frame number)
-        sv_interframe[FEATURE_SVTIME].key = "svtime";
-        sv_interframe[FEATURE_SVTIME].type = FEATURE_ID;
-        sv_interframe[FEATURE_SVTIME].modifier = qfalse;
-        
-        // Reaction time (sv_time delta, used to compute the time elapsed between the last action and the current action)
-        sv_interframe[FEATURE_REACTIONTIME].key = "reactiontime";
-        sv_interframe[FEATURE_REACTIONTIME].type = FEATURE_HUMAN;
-        sv_interframe[FEATURE_REACTIONTIME].modifier = qfalse;
-        
-        // Frags in a row (accumulator)
-        sv_interframe[FEATURE_FRAGSINAROW].key = "fragsinarow";
-        sv_interframe[FEATURE_FRAGSINAROW].type = FEATURE_HUMAN;
-        sv_interframe[FEATURE_FRAGSINAROW].modifier = qtrue;
-        
-        // Armor
-        sv_interframe[FEATURE_ARMOR].key = "armor";
-        sv_interframe[FEATURE_ARMOR].type = FEATURE_GAMESPECIFIC;
-        sv_interframe[FEATURE_ARMOR].modifier = qtrue;
-        
-        // Frame Repeat
-        sv_interframe[FEATURE_FRAMEREPEAT].key = "framerepeat";
-        sv_interframe[FEATURE_FRAMEREPEAT].type = FEATURE_METADATA;
-        sv_interframe[FEATURE_FRAMEREPEAT].modifier = qfalse;
-        
-        // Label
-        sv_interframe[LABEL_CHEATER].key = "cheater";
-        sv_interframe[LABEL_CHEATER].type = FEATURE_LABEL;
-        sv_interframe[LABEL_CHEATER].modifier = qtrue;
+        // for each variable, we set its name (key), type and modifier flag
+        for (i=0;i<FEATURES_COUNT;i++) {
+            sv_interframe[i].key = sv_interframe_keys[i];
+            sv_interframe[i].type = sv_interframe_types[i];
+            sv_interframe[i].modifier = sv_interframe_modifiers[i];
+        }
     }
     
     // If a client id is supplied, we will only reset values for this client
@@ -701,6 +908,59 @@ qboolean SV_IsSpectator(int client) {
         return qtrue;
     } else {
         return qfalse;
+    }
+}
+
+// Check whether a given weapon (from weapon_t enum type) is an instant-hit long range weapon
+qboolean SV_IsWeaponInstantHit(int weapon) {
+    switch( weapon ) {
+        case WP_NONE:
+            return qfalse;
+            break;
+        case WP_GAUNTLET: // not long range
+            return qfalse;
+            break;
+        case WP_LIGHTNING:
+            return qtrue;
+            break;
+        case WP_SHOTGUN:
+            return qtrue;
+            break;
+        case WP_MACHINEGUN:
+            return qtrue;
+            break;
+        case WP_GRENADE_LAUNCHER:
+            return qfalse;
+            break;
+        case WP_ROCKET_LAUNCHER:
+            return qfalse;
+            break;
+        case WP_PLASMAGUN:
+            return qfalse;
+            break;
+        case WP_RAILGUN:
+            return qtrue;
+            break;
+        case WP_BFG:
+            return qfalse;
+            break;
+        case WP_GRAPPLING_HOOK:
+            return qfalse;
+            break;
+    #ifdef MISSIONPACK
+        case WP_NAILGUN:
+            return qfalse;
+            break;
+        case WP_PROX_LAUNCHER:
+            return qfalse;
+            break;
+        case WP_CHAINGUN:
+            return qtrue;
+            break;
+    #endif
+        default:
+            return qfalse;
+            break;
     }
 }
 
