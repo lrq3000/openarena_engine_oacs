@@ -72,22 +72,21 @@ typedef enum {
     FEATURE_ASSIST_COUNTACC,
 	FEATURE_GAUNTLET_FRAG_COUNT,		// kills with the guantlet
     FEATURE_GAUNTLET_FRAG_COUNTACC,
-    
+
     FEATURE_FRAGS, // number of kills a player did, incremented in regard to when a player gets killed (we can then get the killer's id)
     FEATURE_FRAGSINAROW, // accumulator
-    
-    FEATURE_DAMAGEEVENT_COUNT, // ps.damageEvent is an incremented counter
+
+    FEATURE_DAMAGEEVENT_COUNT, // damage one receive (not inflicted to the opponent). ps.damageEvent is an incremented counter
     FEATURE_DAMAGEEVENT_COUNTACC,
-    
+
     FEATURE_DUCKED, // ps->pm_flags & PMF_DUCKED
     FEATURE_MIDAIR, // ps->groundEntityNum == ENTITYNUM_NONE
-    
+
     FEATURE_WEAPON, // ps->weapon
     FEATURE_WEAPONSTATE, // ps->weaponstate
     FEATURE_WEAPONINSTANTHIT, // is weapon a long-range instant-hit weapon? (which can be delaggued and easier to use by aimbots?)
-    
-    FEATURE_POWERUP_NONE, // ps->powerups[PW_NONE] (powerup_t enum type)
-    FEATURE_POWERUP_QUAD, // ps->powerups[PW_QUAD] (powerup_t enum type)
+
+    FEATURE_POWERUP_QUAD, // ps->powerups[PW_QUAD] (powerup_t enum type), beware, it contains either 0 (does not have) or > 0 which would be the time the powerup is still active or was enabled. This is the same for all powerups.
     FEATURE_POWERUP_BATTLESUIT,
     FEATURE_POWERUP_HASTE,
     FEATURE_POWERUP_INVIS,
@@ -115,7 +114,7 @@ typedef enum {
     FEATURE_ARMOR,
     FEATURE_SPEED, // abs(ps->velocity[0]) + abs(ps->velocity[1]) + abs(ps->velocity[2])
     FEATURE_SPEEDRATIO, // ( abs(ps->velocity[0]) + abs(ps->velocity[1]) + abs(ps->velocity[2]) ) / ps->speed; // ps->speed is the maximum speed the client should have
-    FEATURE_DAMAGE_COUNT,
+    FEATURE_DAMAGE_COUNT, // total amount damage one has received (not inflicted to the opponent).
 
     // Do not modify the rest of the features below
     FEATURE_FRAMEREPEAT, // Do not modify: this frame counts the number of times an interframe is repeated. This feature is necessary to keep storage space.

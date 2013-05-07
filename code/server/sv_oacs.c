@@ -89,17 +89,16 @@ char *sv_interframe_keys[] = {
     "frags",
     "fragsinarow",
     
-    "damageeventcount",
-    "damageeventcountacc",
-    
+    "selfdamageeventcount",
+    "selfdamageeventcountacc",
+
     "ducked",
     "midair",
-    
+
     "weapon",
     "weaponstate",
     "weaponinstanthit",
-    
-    "powerup_none",
+
     "powerup_quad",
     "powerup_battlesuit",
     "powerup_haste",
@@ -126,7 +125,7 @@ char *sv_interframe_keys[] = {
     "armor",
     "speed",
     "speedratio",
-    "damagecount",
+    "selfdamagecount",
 
     "framerepeat",
     "cheater"
@@ -168,18 +167,17 @@ int sv_interframe_types[] = {
     
     FEATURE_PHYSICS, // frags
     FEATURE_HUMAN, // fragsinarow
-    
+
     FEATURE_PHYSICS, // damagecount
     FEATURE_HUMAN, // damageeventcountacc
-    
+
     FEATURE_HUMAN, // ducked
     FEATURE_HUMAN, // midair
-    
+
     FEATURE_HUMAN, // weapon
     FEATURE_HUMAN, // weaponstate
     FEATURE_HUMAN, // weaponinstanthit
-    
-    FEATURE_HUMAN, // powerup_none
+
     FEATURE_HUMAN, // powerup_quad
     FEATURE_HUMAN, // powerup_battlesuit
     FEATURE_HUMAN, // powerup_haste
@@ -248,18 +246,17 @@ qboolean sv_interframe_modifiers[] = {
     
     qtrue, // frags
     qtrue, // fragsinarow
-    
+
     qtrue, // damagecount
     qtrue, // damageeventcountacc
-    
+
     qtrue, // ducked
     qtrue, // midair
-    
+
     qtrue, // weapon
     qtrue, // weaponstate
     qtrue, // weaponinstanthit
-    
-    qtrue, // powerup_none
+
     qtrue, // powerup_quad
     qtrue, // powerup_battlesuit
     qtrue, // powerup_haste
@@ -281,9 +278,9 @@ qboolean sv_interframe_modifiers[] = {
     qtrue, // rank
     qtrue, // enemyhadflag
 
-    qfalse, // health
+    qtrue, // health
     qfalse, // max_health
-    qfalse, // armor
+    qtrue, // armor
     qfalse, // speed
     qfalse, // speedratio
     qfalse, // damagecount
@@ -645,7 +642,6 @@ double SV_ExtendedRecordInterframeInitValue(int client, int feature) {
         case FEATURE_DAMAGEEVENT_COUNT:
             return 0;
 
-        case FEATURE_POWERUP_NONE:
         case FEATURE_POWERUP_QUAD:
         case FEATURE_POWERUP_BATTLESUIT:
         case FEATURE_POWERUP_HASTE:
@@ -766,6 +762,18 @@ void SV_ExtendedRecordInterframeUpdateValues(int client) {
     SV_ExtendedRecordSetFeatureValue(FEATURE_MOVEMENTDIR, ps->movementDir, client);
 
 
+    // FRAGS and FRAGSINAROW
+    // we try to heuristically tell when the current player killed someone when the number of hits and the score both increased (then probably the player killed another player and got his score incremented)
+    // Note: this must be done before updating both FEATURE_HITS and FEATURE_SCORE
+    // Note2: this also works with bots, but may not be very reliable.
+    // FIXME: find a more reliable way to count frags, and which works with bots?
+    if ( (ps->persistant[PERS_HITS] > sv_interframe[FEATURE_HITS].value[client]) && (ps->persistant[PERS_SCORE] > sv_interframe[FEATURE_SCORE].value[client]) ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGS, sv_interframe[FEATURE_FRAGS].value[client] + 1, client);
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, sv_interframe[FEATURE_FRAGSINAROW].value[client] + 1, client);
+    } else { // reset the accumulator if no frag in this frame
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, 0, client);
+    }
+
     // SCOREACC
     // increment when the value change
     // Note: must be done before updating FEATURE_HITS
@@ -786,19 +794,22 @@ void SV_ExtendedRecordInterframeUpdateValues(int client) {
     } else { // else we reset the accumulator to 0
         SV_ExtendedRecordSetFeatureValue(FEATURE_HITSACC, 0, client);
     }
-    
-    // FRAGS and FRAGSINAROW
-    // we check if the current player hit someone and that the hit player is dead. FIXME: this will count only 1 death per frame, but this is the most reliable way I have found without adding a new stats variable in persistant. In fact you can add a frag from the victim when the victim dies, but then how do you compute the FRAGSINAROW accumulator?
-    // Note: this must be done before updating FEATURE_DEATH
-    if ( (ps->persistant[PERS_HITS] > sv_interframe[FEATURE_HITS].value[client]) && ps->persistant[PERS_ATTACKEE_ARMOR] <= 0 ) {
-        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGS, sv_interframe[FEATURE_FRAGS].value[client] + 1, client);
-        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, sv_interframe[FEATURE_FRAGSINAROW].value[client] + 1, client);
-    } else { // reset the accumulator if no frag in this frame
-        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, 0, client);
-    }
 
     // HITS
     SV_ExtendedRecordSetFeatureValue(FEATURE_HITS, ps->persistant[PERS_HITS], client);
+
+    // FRAGS and FRAGSINAROW alternative way of computing (more reliable but works only when a player kills a player, not a bot)
+    // we check if the current player is dead, then the attacker gets a frag
+    // Note: this must be done before updating FEATURE_DEATH
+    // Note2: works only when a player kills another player. Won't work with bots (since they are not taken in account in interframes).
+    /*
+    if ( (ps->persistant[PERS_KILLED] > sv_interframe[FEATURE_DEATH].value[client]) ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGS, attacker, attacker);
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, sv_interframe[FEATURE_FRAGSINAROW].value[attacker] + 1, attacker);
+    } else { // reset the accumulator if no frag in this frame
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, 0, attacker);
+    }
+    */
 
     // DEATHACC
     // increment when the value change
@@ -841,6 +852,9 @@ void SV_ExtendedRecordInterframeUpdateValues(int client) {
     // Note: must be done before updating FEATURE_EXCELLENT_COUNT
     if ( ps->persistant[PERS_EXCELLENT_COUNT] > sv_interframe[FEATURE_EXCELLENT_COUNT].value[client] ) {
         SV_ExtendedRecordSetFeatureValue(FEATURE_EXCELLENT_COUNTACC, sv_interframe[FEATURE_EXCELLENT_COUNTACC].value[client] + (ps->persistant[PERS_EXCELLENT_COUNT] - sv_interframe[FEATURE_EXCELLENT_COUNT].value[client]), client);
+        // Excellent = two successive kills in a row, thus we also update FRAGSINAROW and FRAGS
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, sv_interframe[FEATURE_FRAGS].value[client] + 2, client);
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, sv_interframe[FEATURE_FRAGSINAROW].value[client] + 2, client);
     } else { // else we reset the accumulator to 0
         SV_ExtendedRecordSetFeatureValue(FEATURE_EXCELLENT_COUNTACC, 0, client);
     }
@@ -898,7 +912,7 @@ void SV_ExtendedRecordInterframeUpdateValues(int client) {
     SV_ExtendedRecordSetFeatureValue(FEATURE_DAMAGEEVENT_COUNT, ps->damageEvent, client);
 
     // DUCKED
-    SV_ExtendedRecordSetFeatureValue(FEATURE_DUCKED, ps->pm_flags & PMF_DUCKED, client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_DUCKED, (ps->pm_flags & PMF_DUCKED) ? 1 : 0, client);
     // MIDAIR
     SV_ExtendedRecordSetFeatureValue(FEATURE_MIDAIR, ps->groundEntityNum == ENTITYNUM_NONE, client);
 
@@ -909,31 +923,29 @@ void SV_ExtendedRecordInterframeUpdateValues(int client) {
     // WEAPONINSTANTHIT
     SV_ExtendedRecordSetFeatureValue(FEATURE_WEAPONINSTANTHIT, SV_IsWeaponInstantHit(ps->weapon) ? 1 : 0, client);
 
-    // POWERUP_NONE
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_NONE, ps->powerups[PW_NONE], client);
     // POWERUP_QUAD
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_QUAD, ps->powerups[PW_QUAD], client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_QUAD, ps->powerups[PW_QUAD] ? 1 : 0, client);
     // POWERUP_BATTLESUIT
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_BATTLESUIT, ps->powerups[PW_BATTLESUIT], client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_BATTLESUIT, ps->powerups[PW_BATTLESUIT] ? 1 : 0, client);
     // POWERUP_HASTE
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_HASTE, ps->powerups[PW_HASTE], client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_HASTE, ps->powerups[PW_HASTE] ? 1 : 0, client);
     // POWERUP_INVIS
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_INVIS, ps->powerups[PW_INVIS], client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_INVIS, ps->powerups[PW_INVIS] ? 1 : 0, client);
     // POWERUP_REGEN
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_REGEN, ps->powerups[PW_REGEN], client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_REGEN, ps->powerups[PW_REGEN] ? 1 : 0, client);
     // POWERUP_FLIGHT
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_FLIGHT, ps->powerups[PW_FLIGHT], client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_FLIGHT, ps->powerups[PW_FLIGHT] ? 1 : 0, client);
 #ifdef MISSIONPACK
     // POWERUP_SCOUT
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_SCOUT, ps->powerups[PW_SCOUT], client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_SCOUT, ps->powerups[PW_SCOUT] ? 1 : 0, client);
     // POWERUP_GUARD
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_GUARD, ps->powerups[PW_GUARD], client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_GUARD, ps->powerups[PW_GUARD] ? 1 : 0, client);
     // POWERUP_DOUBLER
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_DOUBLER, ps->powerups[PW_DOUBLER], client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_DOUBLER, ps->powerups[PW_DOUBLER] ? 1 : 0, client);
     // POWERUP_AMMOREGEN
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_AMMOREGEN, ps->powerups[PW_AMMOREGEN], client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_AMMOREGEN, ps->powerups[PW_AMMOREGEN] ? 1 : 0, client);
     // POWERUP_INVULNERABILITY
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_INVULNERABILITY, ps->powerups[PW_INVULNERABILITY], client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_INVULNERABILITY, ps->powerups[PW_INVULNERABILITY] ? 1 : 0, client);
 
     // PERSISTANT_POWERUP
     SV_ExtendedRecordSetFeatureValue(FEATURE_PERSISTANT_POWERUP, ps->stats[STAT_PERSISTANT_POWERUP], client);
@@ -941,10 +953,15 @@ void SV_ExtendedRecordInterframeUpdateValues(int client) {
 
     // HASFLAG
     // if the player owns any flag, we consider he has the flag (not necessary his team's flag, but any flag anyway makes this player a more likely target)
-    SV_ExtendedRecordSetFeatureValue(FEATURE_HASFLAG, (ps->powerups[PW_REDFLAG] | ps->powerups[PW_BLUEFLAG] | ps->powerups[PW_NEUTRALFLAG]) , client);
+    if ( (ps->powerups[PW_REDFLAG] > 0) || (ps->powerups[PW_BLUEFLAG] > 0) || (ps->powerups[PW_NEUTRALFLAG] > 0) ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_HASFLAG, 1, client);
+    } else {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_HASFLAG, 0, client);
+    }
     // HOLYSHIT
     // Only the attacker gets HolyShit, here we choose to not set it to the victim (but in the engine the flag is set for both!). Plus, this is an accumulator.
     // PERS_PLAYEREVENT events get XORed everytime, so that we can't know when the event is happening or not unless we check the difference with the previous state (if we witness that it was xored, then the event just happened!)
+    // Note: works only when a player kills another player. It won't work if the player killed a bot.
     if (ps->persistant[PERS_PLAYEREVENTS] != prev_ps[client].persistant[PERS_PLAYEREVENTS]) { // an event was changed
 		if ((ps->persistant[PERS_PLAYEREVENTS] & PLAYEREVENT_HOLYSHIT) !=
 				(prev_ps[client].persistant[PERS_PLAYEREVENTS] & PLAYEREVENT_HOLYSHIT)) { // check that the HOLYSHIT event was XORed
@@ -955,11 +972,15 @@ void SV_ExtendedRecordInterframeUpdateValues(int client) {
     SV_ExtendedRecordSetFeatureValue(FEATURE_RANK, ps->persistant[PERS_RANK], client);
     // ENEMYHADFLAG
     // If the current client has a flag and is dead, the last attacker gets the ENEMYHADFLAG set to true
-    if ( sv_interframe[FEATURE_HASFLAG].value[client] && ps->stats[STAT_HEALTH] <= 0 ) {
+    // Note: works only when a player killed another player. It won't work if the player killed a bot which had the flag.
+    // FIXME: this apparently produce a random crash when picking the enemy flag and killing the enemy while he has the flag (tested against bots).
+    /*
+    if ( sv_interframe[FEATURE_HASFLAG].value[client] && sv_interframe[FEATURE_DEATHACC].value[client] >= 0 ) { // ps->stats[STAT_HEALTH] <= 0 is not reliable for this
         SV_ExtendedRecordSetFeatureValue(FEATURE_ENEMYHADFLAG, 1, attacker);
     } else { // else the next person hit by the attacker will reset the flag to 0
         SV_ExtendedRecordSetFeatureValue(FEATURE_ENEMYHADFLAG, 0, attacker);
     }
+    */
 
     // HEALTH
     SV_ExtendedRecordSetFeatureValue(FEATURE_HEALTH, ps->stats[STAT_HEALTH], client);
