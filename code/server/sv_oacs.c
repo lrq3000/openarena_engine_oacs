@@ -924,28 +924,28 @@ void SV_ExtendedRecordInterframeUpdateValues(int client) {
     SV_ExtendedRecordSetFeatureValue(FEATURE_WEAPONINSTANTHIT, SV_IsWeaponInstantHit(ps->weapon) ? 1 : 0, client);
 
     // POWERUP_QUAD
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_QUAD, ps->powerups[PW_QUAD] ? 1 : 0, client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_QUAD, (ps->powerups[PW_QUAD] != 0) ? 1 : 0, client);
     // POWERUP_BATTLESUIT
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_BATTLESUIT, ps->powerups[PW_BATTLESUIT] ? 1 : 0, client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_BATTLESUIT, (ps->powerups[PW_BATTLESUIT] != 0) ? 1 : 0, client);
     // POWERUP_HASTE
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_HASTE, ps->powerups[PW_HASTE] ? 1 : 0, client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_HASTE, (ps->powerups[PW_HASTE] != 0) ? 1 : 0, client);
     // POWERUP_INVIS
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_INVIS, ps->powerups[PW_INVIS] ? 1 : 0, client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_INVIS, (ps->powerups[PW_INVIS] != 0) ? 1 : 0, client);
     // POWERUP_REGEN
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_REGEN, ps->powerups[PW_REGEN] ? 1 : 0, client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_REGEN, (ps->powerups[PW_REGEN] != 0) ? 1 : 0, client);
     // POWERUP_FLIGHT
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_FLIGHT, ps->powerups[PW_FLIGHT] ? 1 : 0, client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_FLIGHT, (ps->powerups[PW_FLIGHT] != 0) ? 1 : 0, client);
 #ifdef MISSIONPACK
     // POWERUP_SCOUT
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_SCOUT, ps->powerups[PW_SCOUT] ? 1 : 0, client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_SCOUT, (ps->powerups[PW_SCOUT] != 0) ? 1 : 0, client);
     // POWERUP_GUARD
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_GUARD, ps->powerups[PW_GUARD] ? 1 : 0, client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_GUARD, (ps->powerups[PW_GUARD] != 0) ? 1 : 0, client);
     // POWERUP_DOUBLER
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_DOUBLER, ps->powerups[PW_DOUBLER] ? 1 : 0, client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_DOUBLER, (ps->powerups[PW_DOUBLER] != 0) ? 1 : 0, client);
     // POWERUP_AMMOREGEN
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_AMMOREGEN, ps->powerups[PW_AMMOREGEN] ? 1 : 0, client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_AMMOREGEN, (ps->powerups[PW_AMMOREGEN] != 0) ? 1 : 0, client);
     // POWERUP_INVULNERABILITY
-    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_INVULNERABILITY, ps->powerups[PW_INVULNERABILITY] ? 1 : 0, client);
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_INVULNERABILITY, (ps->powerups[PW_INVULNERABILITY] != 0) ? 1 : 0, client);
 
     // PERSISTANT_POWERUP
     SV_ExtendedRecordSetFeatureValue(FEATURE_PERSISTANT_POWERUP, ps->stats[STAT_PERSISTANT_POWERUP], client);
