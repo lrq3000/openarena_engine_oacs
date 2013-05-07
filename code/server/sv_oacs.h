@@ -49,8 +49,8 @@ typedef enum {
     FEATURE_LASTCOMMANDTIME, // ps->commandTime
     FEATURE_COMMANDTIME_REACTIONTIME,
     FEATURE_ANGLEINAFRAME, // abs(ps->viewangles[0] - prev_ps->viewangles[0]) + abs(ps->viewangles[1] - prev_ps->viewangles[1]) + abs(ps->viewangles[2] - prev_ps->viewangles[2]) // PITCH=0/YAW=1/ROLL=2 see q_shared.h
-    FEATURE_LASTMOUSEEVENTTIME, // change when FEATURE_ANGLEINONEFRAME changes
-    FEATURE_MOUSEEVENTTIME_REACTIONTIME, // TODO: maybe add usercmd_t->button type in client_t: svs.clients[id].lastUsercmd.buttons & BUTTON_ATTACK or & BUTTON_ANY ? because for the moment only the angle change accounts for a reaction time. Maybe simply store the previous cmd and when we update, check for a change by comparing every fields of usercmd_t
+    FEATURE_LASTMOUSEEVENTTIME, // change when FEATURE_ANGLEINONEFRAME changes (based on svs.time)
+    FEATURE_MOUSEEVENTTIME_REACTIONTIME, // FIXME: maybe add usercmd_t->button type in client_t: svs.clients[id].lastUsercmd.buttons & BUTTON_ATTACK or & BUTTON_ANY ? because for the moment only the angle change accounts for a reaction time. Maybe simply store the previous cmd and when we update, check for a change by comparing every fields of usercmd_t
     FEATURE_MOVEMENTDIR, // ps->movementDir
 
     // Semi human-specific and semi game-specific. These will be declared as human-specific.
@@ -58,26 +58,26 @@ typedef enum {
     FEATURE_SCOREACC,
     FEATURE_HITS,
     FEATURE_HITSACC,
-    FEATURE_DEATH,
+    FEATURE_DEATH, // ps->persistant[PERS_KILLED]
     FEATURE_DEATHACC,
     FEATURE_CAPTURES,
     FEATURE_CAPTURESACC,
     FEATURE_IMPRESSIVE_COUNT,			// two railgun hits in a row
-    FEATURE_IMPRESSIVE_COUNT_ACC,
+    FEATURE_IMPRESSIVE_COUNTACC,
     FEATURE_EXCELLENT_COUNT,			// two successive kills in a short amount of time
-    FEATURE_EXCELLENT_COUNT_ACC,
+    FEATURE_EXCELLENT_COUNTACC,
 	FEATURE_DEFEND_COUNT,				// defend awards
-    FEATURE_DEFEND_COUNT_ACC,
+    FEATURE_DEFEND_COUNTACC,
 	FEATURE_ASSIST_COUNT,				// assist awards
-    FEATURE_ASSIST_COUNT_ACC,
+    FEATURE_ASSIST_COUNTACC,
 	FEATURE_GAUNTLET_FRAG_COUNT,		// kills with the guantlet
-    FEATURE_GAUNTLET_FRAG_COUNT_ACC,
+    FEATURE_GAUNTLET_FRAG_COUNTACC,
     
     FEATURE_FRAGS, // number of kills a player did, incremented in regard to when a player gets killed (we can then get the killer's id)
     FEATURE_FRAGSINAROW, // accumulator
     
     FEATURE_DAMAGEEVENT_COUNT, // ps.damageEvent is an incremented counter
-    FEATURE_DAMAGEEVENT_COUNT_ACC,
+    FEATURE_DAMAGEEVENT_COUNTACC,
     
     FEATURE_DUCKED, // ps->pm_flags & PMF_DUCKED
     FEATURE_MIDAIR, // ps->groundEntityNum == ENTITYNUM_NONE
@@ -104,17 +104,8 @@ typedef enum {
 #endif
 
     // For CTF
-    FEATURE_HASFLAG, // PW_REDFLAG, PW_BLUEFLAG, PW_NEUTRALFLAG,
-    FEATURE_HOLYSHIT, // ps->persistant[PERS_PLAYEREVENTS] ^= PLAYEREVENT_HOLYSHIT // only attacker get holyshit
-    /*
-    // PERS_PLAYEREVENT events get XORed everytime, so that we can't know when the event is happening or not unless we check the difference with the previous state (if we witness that it was xored, then the event just happened!)
-    if (ps->persistant[PERS_PLAYEREVENTS] != ops->persistant[PERS_PLAYEREVENTS]) {
-		if ((ps->persistant[PERS_PLAYEREVENTS] & PLAYEREVENT_HOLYSHIT) !=
-				(ops->persistant[PERS_PLAYEREVENTS] & PLAYEREVENT_HOLYSHIT)) {
-                // playerState_t	*attacker_ps = SV_GameClientNum( ps->persistant[PERS_ATTACKER] );
-			sv_interframe[FEATURE_HOLYSHIT].value[ps->persistant[PERS_ATTACKER]] += 1; // TODO: then reset when get saved
-		}
-        */
+    FEATURE_HASFLAG, // PW_REDFLAG || PW_BLUEFLAG || PW_NEUTRALFLAG
+    FEATURE_HOLYSHIT, // ps->persistant[PERS_PLAYEREVENTS] & PLAYEREVENT_HOLYSHIT but you must compare with the previous value because PERS_PLAYEREVENTS is always XORed! // only attacker get holyshit
     FEATURE_RANK, // ps->persistant[PERS_RANK]
     FEATURE_ENEMYHADFLAG, // compute when victim gets hit and has flag, then PERS_ATTACKER and set his FEATURE_ENEMYHASFLAG to 1 // enemy we shot had flag (maybe we killed him or not)
     
@@ -122,7 +113,7 @@ typedef enum {
     FEATURE_HEALTH, // ps->stats[STAT_HEALTH] from statIndex_t enum
     FEATURE_MAX_HEALTH,
     FEATURE_ARMOR,
-    FEATURE_SPEED,
+    FEATURE_SPEED, // abs(ps->velocity[0]) + abs(ps->velocity[1]) + abs(ps->velocity[2])
     FEATURE_SPEEDRATIO, // ( abs(ps->velocity[0]) + abs(ps->velocity[1]) + abs(ps->velocity[2]) ) / ps->speed; // ps->speed is the maximum speed the client should have
     FEATURE_DAMAGE_COUNT,
 
@@ -197,6 +188,7 @@ int sv_oacshumanplayers; // oacs implementation of g_humanplayers (but we also c
 extern char *sv_interframe_keys[]; // names of the features, array of string keys to output in the typesfile and datafile
 extern int sv_interframe_types[]; // types of the features, will be outputted in the typesfile
 extern qboolean sv_interframe_modifiers[]; // modifiers for the features, array of boolean that specifies if a feature should commit the interframe on change or not
+playerState_t	prev_ps[MAX_CLIENTS]; // previous frame's playerstate
 
 // Functions
 void SV_ExtendedRecordInit(void);

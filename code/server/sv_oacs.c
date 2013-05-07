@@ -65,7 +65,7 @@ char *sv_interframe_keys[] = {
     "lastmouseeventtime",
     "mouseeventtime_reactiontime",
     "movementdirection",
-    
+
 
     "score",
     "scoreacc",
@@ -83,8 +83,8 @@ char *sv_interframe_keys[] = {
     "defendcountacc",
 	"assistcount",
     "assistcountacc",
-	"fragcount",
-    "fragcountacc",
+	"gauntletfragcount",
+    "gauntletfragcountacc",
     
     "frags",
     "fragsinarow",
@@ -147,29 +147,29 @@ int sv_interframe_types[] = {
     FEATURE_HUMAN, // mouseeventtime_reactiontime
     FEATURE_HUMAN, // movementdirection
 
-    FEATURE_METADATA, // score
+    FEATURE_PHYSICS, // score
     FEATURE_HUMAN, // scoreacc
-    FEATURE_METADATA, // hits
+    FEATURE_PHYSICS, // hits
     FEATURE_HUMAN, // hitsacc
-    FEATURE_METADATA, // death
+    FEATURE_PHYSICS, // death
     FEATURE_HUMAN, // deathacc
-    FEATURE_METADATA, // captures
+    FEATURE_PHYSICS, // captures
     FEATURE_HUMAN, // capturesacc
-    FEATURE_METADATA, // impressivecount
+    FEATURE_PHYSICS, // impressivecount
     FEATURE_HUMAN, // impressivecountacc
-    FEATURE_METADATA, // excellentcount
+    FEATURE_PHYSICS, // excellentcount
     FEATURE_HUMAN, // excellentcountacc
-	FEATURE_METADATA, // defendcount
+	FEATURE_PHYSICS, // defendcount
     FEATURE_HUMAN, // defendcountacc
-	FEATURE_METADATA, // assistcount
+	FEATURE_PHYSICS, // assistcount
     FEATURE_HUMAN, // assistcountacc
-	FEATURE_METADATA, // gauntletfragcount
+	FEATURE_PHYSICS, // gauntletfragcount
     FEATURE_HUMAN, // gauntletfragcountacc
     
-    FEATURE_METADATA, // frags
+    FEATURE_PHYSICS, // frags
     FEATURE_HUMAN, // fragsinarow
     
-    FEATURE_METADATA, // damagecount
+    FEATURE_PHYSICS, // damagecount
     FEATURE_HUMAN, // damageeventcountacc
     
     FEATURE_HUMAN, // ducked
@@ -201,10 +201,10 @@ int sv_interframe_types[] = {
     FEATURE_HUMAN, // rank
     FEATURE_HUMAN, // enemyhadflag
 
-    FEATURE_METADATA, // health
-    FEATURE_METADATA, // max_health
+    FEATURE_PHYSICS, // health
+    FEATURE_PHYSICS, // max_health
     FEATURE_GAMESPECIFIC, // armor
-    FEATURE_METADATA, // speed
+    FEATURE_PHYSICS, // speed
     FEATURE_GAMESPECIFIC, // speedratio
     FEATURE_GAMESPECIFIC, // damagecount
 
@@ -220,12 +220,12 @@ qboolean sv_interframe_modifiers[] = {
     qfalse, // svstime
     qfalse, // reactiontime
     qfalse, // svtime
-    qtrue, // lastcommandtime
+    qfalse, // lastcommandtime
     qfalse, // commandtime_reactiontime
     qtrue, // angleinaframe
     qtrue, // lastmouseeventtime
     qfalse, // mouseeventtime_reactiontime
-    qtrue, // movementdirection
+    qfalse, // movementdirection
 
     qtrue, // score
     qtrue, // scoreacc
@@ -281,12 +281,12 @@ qboolean sv_interframe_modifiers[] = {
     qtrue, // rank
     qtrue, // enemyhadflag
 
-    qtrue, // health
-    qtrue, // max_health
-    qtrue, // armor
-    qtrue, // speed
-    qtrue, // speedratio
-    qtrue, // damagecount
+    qfalse, // health
+    qfalse, // max_health
+    qfalse, // armor
+    qfalse, // speed
+    qfalse, // speedratio
+    qfalse, // damagecount
 
     qfalse, // framerepeat
     qtrue // cheater
@@ -421,7 +421,7 @@ void SV_ExtendedRecordWriteValues(int client) {
         } else if ( ( (svs.time - svs.clients[client].lastPacketTime) > sv_oacsMaxLastPacketTime->integer) || (svs.clients[client].ping > sv_oacsMaxPing->integer) || // drop the last interframe(s) if the player is lagging (we don't want to save extreme values for reaction time and such stuff just because the player is flying in the air, waiting for the connection to stop lagging)
                     ( (svs.clients[client].netchan.outgoingSequence - svs.clients[client].deltaMessage) >= (PACKET_BACKUP - 3) ) ) { // client hasn't gotten a good message through in a long time
             continue;
-        } else if ( ps->pm_type != PM_NORMAL ) { // save only if the player is playing in a normal state, not in a special state where he can't play like dead or intermission TODO: maybe add PM_DEAD too?
+        } else if ( ps->pm_type != PM_NORMAL ) { // save only if the player is playing in a normal state, not in a special state where he can't play like dead or intermission FIXME: maybe add PM_DEAD too?
             continue;
         }
 
@@ -593,6 +593,7 @@ void SV_ExtendedRecordInterframeInit(int client) {
 // Note: do not use SV_ExtendedRecordSetFeatureValue() here, just access directly sv_interframe (you don't want to commit anything here)
 void SV_ExtendedRecordInterframeInitValues(int client) {
     int feature;
+    playerState_t *ps;
 
     // Loop through all features and set a default value
     for (feature=0;feature<FEATURES_COUNT;feature++) {
@@ -601,23 +602,85 @@ void SV_ExtendedRecordInterframeInitValues(int client) {
             sv_interframe[feature].value[client] = SV_ExtendedRecordInterframeInitValue(client, feature);
         }
     }
+
+    // Init the previous player's state values
+    ps = SV_GameClientNum( client ); // get the player's state
+    Com_Memset(&prev_ps, 0, sizeof(playerState_t));
+    Com_Memcpy(&prev_ps[client], ps, sizeof(playerState_t));
 }
 
 // Set the initial values for some features
 // This is a simple switch/case in order to ease modifications, just return the value you want for this feature
 // set here the default values you want for a feature if you want it to be different than 0 or NaN
 double SV_ExtendedRecordInterframeInitValue(int client, int feature) {
+    playerState_t *ps;
+    ps = SV_GameClientNum( client ); // get the player's state
+
     switch( feature ) {
         case FEATURE_PLAYERID:
             // Set unique player id (we want this id to be completely generated serverside and without any means to tamper it clientside) - we don't care that the id change for the same player when he reconnects, since anyway the id will always link to the player's ip and guid using the playerstable
             //char tmp[MAX_STRING_CHARS] = ""; snprintf(tmp, MAX_STRING_CHARS, "%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL));
-            return atof( va("%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL)) ); // TODO: use a real UUID/GUID here (for the moment we simply use the timestamp in seconds + a random number, this should be enough for now to ensure the uniqueness of all the players) - do NOT use ioquake3 GUID since it can be spoofed (there's no centralized authorization system!)
+            return atof( va("%i%lu", rand_range(1, 99999), (unsigned long int)time(NULL)) ); // FIXME: use a real UUID/GUID here (for the moment we simply use the timestamp in seconds + a random number, this should be enough for now to ensure the uniqueness of all the players) - do NOT use ioquake3 GUID since it can be spoofed (there's no centralized authorization system!)
         case FEATURE_SVSTIME:
             // Server time (serverStatic_t time, which is always strictly increasing)
             return svs.time;
         case FEATURE_SVTIME:
             // Server time (non-persistant server time, can be used to check whether a new game is starting)
             return sv.time;
+        case FEATURE_LASTCOMMANDTIME:
+            return ps->commandTime;
+        case FEATURE_MOVEMENTDIR:
+            return ps->movementDir;
+
+        case FEATURE_SCORE:
+        case FEATURE_HITS:
+        case FEATURE_DEATH:
+        case FEATURE_CAPTURES:
+        case FEATURE_IMPRESSIVE_COUNT:
+        case FEATURE_EXCELLENT_COUNT:
+        case FEATURE_DEFEND_COUNT:
+        case FEATURE_ASSIST_COUNT:
+        case FEATURE_GAUNTLET_FRAG_COUNT:
+        case FEATURE_FRAGS:
+        case FEATURE_DAMAGEEVENT_COUNT:
+            return 0;
+
+        case FEATURE_POWERUP_NONE:
+        case FEATURE_POWERUP_QUAD:
+        case FEATURE_POWERUP_BATTLESUIT:
+        case FEATURE_POWERUP_HASTE:
+        case FEATURE_POWERUP_INVIS:
+        case FEATURE_POWERUP_REGEN:
+        case FEATURE_POWERUP_FLIGHT:
+#ifdef MISSIONPACK
+        case FEATURE_POWERUP_SCOUT:
+        case FEATURE_POWERUP_GUARD:
+        case FEATURE_POWERUP_DOUBLER:
+        case FEATURE_POWERUP_AMMOREGEN:
+        case FEATURE_POWERUP_INVULNERABILITY:
+        case FEATURE_PERSISTANT_POWERUP:
+            return 0;
+#endif
+
+        case FEATURE_HASFLAG:
+        case FEATURE_HOLYSHIT:
+        case FEATURE_RANK:
+        case FEATURE_ENEMYHADFLAG:
+            return 0;
+        
+        case FEATURE_HEALTH:
+            return ps->stats[STAT_HEALTH];
+        case FEATURE_MAX_HEALTH:
+            return ps->stats[STAT_MAX_HEALTH];
+        case FEATURE_ARMOR:
+            return ps->stats[STAT_ARMOR];
+        case FEATURE_SPEED:
+            return 0; // initial speed of the player, not ps->speed which is the theoretical maximum player's speed
+        case FEATURE_SPEEDRATIO:
+            return 0;
+        case FEATURE_DAMAGE_COUNT:
+            return 0;
+
         case FEATURE_FRAMEREPEAT:
             // FrameRepeat: number of times a frame was repeated (1 = one frame, it was not repeated)
             return 1;
@@ -678,31 +741,262 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
 // Note2: you should here use SV_ExtendedRecordSetFeatureValue() because you generally want to commit your variables when they are updated (if not, prefer to use a modifier = qfalse and still use the SetFeatureValue() function).
 // Note3: the order matters here, so that you can compute a feature only after another feature was computed.
 void SV_ExtendedRecordInterframeUpdateValues(int client) {
+    int attacker;
+    playerState_t	*ps;
+    ps = SV_GameClientNum( client ); // get the player's state
+    attacker = ps->persistant[PERS_ATTACKER];
+
     //== Updating normal features' values
     // TIMESTAMP
     SV_ExtendedRecordSetFeatureValue(FEATURE_TIMESTAMP, time(NULL), client);
-    // FRAGSINAROW
-    SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, rand_range(0,1), client);
-    // ARMOR
-    SV_ExtendedRecordSetFeatureValue(FEATURE_ARMOR, 0, client);
+    // COMMANDTIME_REACTIONTIME
+    // must be set before setting the new lastcommandtime
+    SV_ExtendedRecordSetFeatureValue(FEATURE_COMMANDTIME_REACTIONTIME, ps->commandTime - sv_interframe[FEATURE_LASTCOMMANDTIME].value[client], client);
+    // LASTCOMMANDTIME
+    SV_ExtendedRecordSetFeatureValue(FEATURE_LASTCOMMANDTIME, ps->commandTime, client);
+    // ANGLEINAFRAME
+    // Compute the total angle in all directions in one frame
+    SV_ExtendedRecordSetFeatureValue(FEATURE_ANGLEINAFRAME, (abs(ps->viewangles[0] - prev_ps[client].viewangles[0]) + abs(ps->viewangles[1] - prev_ps[client].viewangles[1]) + abs(ps->viewangles[2] - prev_ps[client].viewangles[2])) , client);
+    // LASTMOUSEEVENTTIME and MOUSEEVENTTIME_REACTIONTIME
+    if ( sv_interframe[FEATURE_ANGLEINAFRAME].value[client] > 0 ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_MOUSEEVENTTIME_REACTIONTIME, svs.time - sv_interframe[FEATURE_LASTMOUSEEVENTTIME].value[client], client); // update the mouse reaction time before the last mouse event time
+        SV_ExtendedRecordSetFeatureValue(FEATURE_LASTMOUSEEVENTTIME, svs.time, client);
+    }
+    // MOVEMENTDIR
+    SV_ExtendedRecordSetFeatureValue(FEATURE_MOVEMENTDIR, ps->movementDir, client);
 
-    //== Update delta features (values that need to be computed only in difference with the previous interframe when there's a change, or after other features)
+
+    // SCOREACC
+    // increment when the value change
+    // Note: must be done before updating FEATURE_HITS
+    if ( ps->persistant[PERS_SCORE] > sv_interframe[FEATURE_SCORE].value[client] ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_SCOREACC, sv_interframe[FEATURE_SCOREACC].value[client] + (ps->persistant[PERS_SCORE] - sv_interframe[FEATURE_SCORE].value[client]), client);
+    } else { // else we reset the accumulator to 0
+        SV_ExtendedRecordSetFeatureValue(FEATURE_SCOREACC, 0, client);
+    }
+
+    // SCORE
+    SV_ExtendedRecordSetFeatureValue(FEATURE_SCORE, ps->persistant[PERS_SCORE], client);
+
+    // HITSACC
+    // increment when the value change
+    // Note: must be done before updating FEATURE_HITS
+    if ( ps->persistant[PERS_HITS] > sv_interframe[FEATURE_HITS].value[client] ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_HITSACC, sv_interframe[FEATURE_HITSACC].value[client] + (ps->persistant[PERS_HITS] - sv_interframe[FEATURE_HITS].value[client]), client);
+    } else { // else we reset the accumulator to 0
+        SV_ExtendedRecordSetFeatureValue(FEATURE_HITSACC, 0, client);
+    }
+    
+    // FRAGS and FRAGSINAROW
+    // we check if the current player hit someone and that the hit player is dead. FIXME: this will count only 1 death per frame, but this is the most reliable way I have found without adding a new stats variable in persistant. In fact you can add a frag from the victim when the victim dies, but then how do you compute the FRAGSINAROW accumulator?
+    // Note: this must be done before updating FEATURE_DEATH
+    if ( (ps->persistant[PERS_HITS] > sv_interframe[FEATURE_HITS].value[client]) && ps->persistant[PERS_ATTACKEE_ARMOR] <= 0 ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGS, sv_interframe[FEATURE_FRAGS].value[client] + 1, client);
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, sv_interframe[FEATURE_FRAGSINAROW].value[client] + 1, client);
+    } else { // reset the accumulator if no frag in this frame
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, 0, client);
+    }
+
+    // HITS
+    SV_ExtendedRecordSetFeatureValue(FEATURE_HITS, ps->persistant[PERS_HITS], client);
+
+    // DEATHACC
+    // increment when the value change
+    // Note: must be done before updating FEATURE_DEATH
+    if ( ps->persistant[PERS_KILLED] > sv_interframe[FEATURE_DEATH].value[client] ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_DEATHACC, sv_interframe[FEATURE_DEATHACC].value[client] + (ps->persistant[PERS_KILLED] - sv_interframe[FEATURE_DEATH].value[client]), client);
+    } else { // else we reset the accumulator to 0
+        SV_ExtendedRecordSetFeatureValue(FEATURE_DEATHACC, 0, client);
+    }
+
+    // DEATH
+    SV_ExtendedRecordSetFeatureValue(FEATURE_DEATH, ps->persistant[PERS_KILLED], client);
+
+    // CAPTURESACC
+    // increment when the value change
+    // Note: must be done before updating FEATURE_CAPTURES
+    if ( ps->persistant[PERS_CAPTURES] > sv_interframe[FEATURE_CAPTURES].value[client] ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_CAPTURESACC, sv_interframe[FEATURE_CAPTURESACC].value[client] + (ps->persistant[PERS_CAPTURES] - sv_interframe[FEATURE_CAPTURES].value[client]), client);
+    } else { // else we reset the accumulator to 0
+        SV_ExtendedRecordSetFeatureValue(FEATURE_CAPTURESACC, 0, client);
+    }
+
+    // CAPTURES
+    SV_ExtendedRecordSetFeatureValue(FEATURE_CAPTURES, ps->persistant[PERS_CAPTURES], client);
+
+    // IMPRESSIVE_COUNTACC
+    // increment when the value change
+    // Note: must be done before updating FEATURE_IMPRESSIVE_COUNT
+    if ( ps->persistant[PERS_IMPRESSIVE_COUNT] > sv_interframe[FEATURE_IMPRESSIVE_COUNT].value[client] ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_IMPRESSIVE_COUNTACC, sv_interframe[FEATURE_IMPRESSIVE_COUNTACC].value[client] + (ps->persistant[PERS_IMPRESSIVE_COUNT] - sv_interframe[FEATURE_IMPRESSIVE_COUNT].value[client]), client);
+    } else { // else we reset the accumulator to 0
+        SV_ExtendedRecordSetFeatureValue(FEATURE_IMPRESSIVE_COUNTACC, 0, client);
+    }
+
+    // IMPRESSIVE_COUNT
+    SV_ExtendedRecordSetFeatureValue(FEATURE_IMPRESSIVE_COUNT, ps->persistant[PERS_IMPRESSIVE_COUNT], client);
+
+    // EXCELLENT_COUNTACC
+    // increment when the value change
+    // Note: must be done before updating FEATURE_EXCELLENT_COUNT
+    if ( ps->persistant[PERS_EXCELLENT_COUNT] > sv_interframe[FEATURE_EXCELLENT_COUNT].value[client] ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_EXCELLENT_COUNTACC, sv_interframe[FEATURE_EXCELLENT_COUNTACC].value[client] + (ps->persistant[PERS_EXCELLENT_COUNT] - sv_interframe[FEATURE_EXCELLENT_COUNT].value[client]), client);
+    } else { // else we reset the accumulator to 0
+        SV_ExtendedRecordSetFeatureValue(FEATURE_EXCELLENT_COUNTACC, 0, client);
+    }
+
+    // EXCELLENT_COUNT
+    SV_ExtendedRecordSetFeatureValue(FEATURE_EXCELLENT_COUNT, ps->persistant[PERS_EXCELLENT_COUNT], client);
+
+    // DEFEND_COUNTACC
+    // increment when the value change
+    // Note: must be done before updating FEATURE_DEFEND_COUNT
+    if ( ps->persistant[PERS_DEFEND_COUNT] > sv_interframe[FEATURE_DEFEND_COUNT].value[client] ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_DEFEND_COUNTACC, sv_interframe[FEATURE_DEFEND_COUNTACC].value[client] + (ps->persistant[PERS_DEFEND_COUNT] - sv_interframe[FEATURE_DEFEND_COUNT].value[client]), client);
+    } else { // else we reset the accumulator to 0
+        SV_ExtendedRecordSetFeatureValue(FEATURE_DEFEND_COUNTACC, 0, client);
+    }
+
+    // DEFEND_COUNT
+    SV_ExtendedRecordSetFeatureValue(FEATURE_DEFEND_COUNT, ps->persistant[PERS_DEFEND_COUNT], client);
+
+    // ASSIST_COUNTACC
+    // increment when the value change
+    // Note: must be done before updating FEATURE_ASSIST_COUNT
+    if ( ps->persistant[PERS_ASSIST_COUNT] > sv_interframe[FEATURE_ASSIST_COUNT].value[client] ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_ASSIST_COUNTACC, sv_interframe[FEATURE_ASSIST_COUNTACC].value[client] + (ps->persistant[PERS_ASSIST_COUNT] - sv_interframe[FEATURE_ASSIST_COUNT].value[client]), client);
+    } else { // else we reset the accumulator to 0
+        SV_ExtendedRecordSetFeatureValue(FEATURE_ASSIST_COUNTACC, 0, client);
+    }
+
+    // ASSIST_COUNT
+    SV_ExtendedRecordSetFeatureValue(FEATURE_ASSIST_COUNT, ps->persistant[PERS_ASSIST_COUNT], client);
+
+    // GAUNTLET_FRAG_COUNTACC
+    // increment when the value change
+    // Note: must be done before updating FEATURE_GAUNTLET_FRAG_COUNT
+    if ( ps->persistant[PERS_GAUNTLET_FRAG_COUNT] > sv_interframe[FEATURE_GAUNTLET_FRAG_COUNT].value[client] ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_GAUNTLET_FRAG_COUNTACC, sv_interframe[FEATURE_GAUNTLET_FRAG_COUNTACC].value[client] + (ps->persistant[PERS_GAUNTLET_FRAG_COUNT] - sv_interframe[FEATURE_GAUNTLET_FRAG_COUNT].value[client]), client);
+    } else { // else we reset the accumulator to 0
+        SV_ExtendedRecordSetFeatureValue(FEATURE_GAUNTLET_FRAG_COUNTACC, 0, client);
+    }
+
+    // GAUNTLET_FRAG_COUNT
+    SV_ExtendedRecordSetFeatureValue(FEATURE_GAUNTLET_FRAG_COUNT, ps->persistant[PERS_GAUNTLET_FRAG_COUNT], client);
+
+
+    // DAMAGEEVENT_COUNTACC
+    // increment when the value change
+    // Note: must be done before updating FEATURE_DAMAGEEVENT_COUNT
+    if ( ps->damageEvent > sv_interframe[FEATURE_DAMAGEEVENT_COUNT].value[client] ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_DAMAGEEVENT_COUNTACC, sv_interframe[FEATURE_DAMAGEEVENT_COUNTACC].value[client] + (ps->damageEvent - sv_interframe[FEATURE_DAMAGEEVENT_COUNT].value[client]), client);
+    } else { // else we reset the accumulator to 0
+        SV_ExtendedRecordSetFeatureValue(FEATURE_DAMAGEEVENT_COUNTACC, 0, client);
+    }
+
+    // DAMAGEEVENT_COUNT
+    SV_ExtendedRecordSetFeatureValue(FEATURE_DAMAGEEVENT_COUNT, ps->damageEvent, client);
+
+    // DUCKED
+    SV_ExtendedRecordSetFeatureValue(FEATURE_DUCKED, ps->pm_flags & PMF_DUCKED, client);
+    // MIDAIR
+    SV_ExtendedRecordSetFeatureValue(FEATURE_MIDAIR, ps->groundEntityNum == ENTITYNUM_NONE, client);
+
+    // WEAPON
+    SV_ExtendedRecordSetFeatureValue(FEATURE_WEAPON, ps->weapon, client);
+    // WEAPONSTATE
+    SV_ExtendedRecordSetFeatureValue(FEATURE_WEAPONSTATE, ps->weaponstate, client);
+    // WEAPONINSTANTHIT
+    SV_ExtendedRecordSetFeatureValue(FEATURE_WEAPONINSTANTHIT, SV_IsWeaponInstantHit(ps->weapon) ? 1 : 0, client);
+
+    // POWERUP_NONE
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_NONE, ps->powerups[PW_NONE], client);
+    // POWERUP_QUAD
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_QUAD, ps->powerups[PW_QUAD], client);
+    // POWERUP_BATTLESUIT
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_BATTLESUIT, ps->powerups[PW_BATTLESUIT], client);
+    // POWERUP_HASTE
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_HASTE, ps->powerups[PW_HASTE], client);
+    // POWERUP_INVIS
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_INVIS, ps->powerups[PW_INVIS], client);
+    // POWERUP_REGEN
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_REGEN, ps->powerups[PW_REGEN], client);
+    // POWERUP_FLIGHT
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_FLIGHT, ps->powerups[PW_FLIGHT], client);
+#ifdef MISSIONPACK
+    // POWERUP_SCOUT
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_SCOUT, ps->powerups[PW_SCOUT], client);
+    // POWERUP_GUARD
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_GUARD, ps->powerups[PW_GUARD], client);
+    // POWERUP_DOUBLER
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_DOUBLER, ps->powerups[PW_DOUBLER], client);
+    // POWERUP_AMMOREGEN
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_AMMOREGEN, ps->powerups[PW_AMMOREGEN], client);
+    // POWERUP_INVULNERABILITY
+    SV_ExtendedRecordSetFeatureValue(FEATURE_POWERUP_INVULNERABILITY, ps->powerups[PW_INVULNERABILITY], client);
+
+    // PERSISTANT_POWERUP
+    SV_ExtendedRecordSetFeatureValue(FEATURE_PERSISTANT_POWERUP, ps->stats[STAT_PERSISTANT_POWERUP], client);
+#endif
+
+    // HASFLAG
+    // if the player owns any flag, we consider he has the flag (not necessary his team's flag, but any flag anyway makes this player a more likely target)
+    SV_ExtendedRecordSetFeatureValue(FEATURE_HASFLAG, (ps->powerups[PW_REDFLAG] | ps->powerups[PW_BLUEFLAG] | ps->powerups[PW_NEUTRALFLAG]) , client);
+    // HOLYSHIT
+    // Only the attacker gets HolyShit, here we choose to not set it to the victim (but in the engine the flag is set for both!). Plus, this is an accumulator.
+    // PERS_PLAYEREVENT events get XORed everytime, so that we can't know when the event is happening or not unless we check the difference with the previous state (if we witness that it was xored, then the event just happened!)
+    if (ps->persistant[PERS_PLAYEREVENTS] != prev_ps[client].persistant[PERS_PLAYEREVENTS]) { // an event was changed
+		if ((ps->persistant[PERS_PLAYEREVENTS] & PLAYEREVENT_HOLYSHIT) !=
+				(prev_ps[client].persistant[PERS_PLAYEREVENTS] & PLAYEREVENT_HOLYSHIT)) { // check that the HOLYSHIT event was XORed
+			SV_ExtendedRecordSetFeatureValue(FEATURE_HOLYSHIT, sv_interframe[FEATURE_HOLYSHIT].value[attacker] + 1, attacker);
+		}
+    } // FIXME: reset the HOLYSHIT accumulator? When?
+    // RANK
+    SV_ExtendedRecordSetFeatureValue(FEATURE_RANK, ps->persistant[PERS_RANK], client);
+    // ENEMYHADFLAG
+    // If the current client has a flag and is dead, the last attacker gets the ENEMYHADFLAG set to true
+    if ( sv_interframe[FEATURE_HASFLAG].value[client] && ps->stats[STAT_HEALTH] <= 0 ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_ENEMYHADFLAG, 1, attacker);
+    } else { // else the next person hit by the attacker will reset the flag to 0
+        SV_ExtendedRecordSetFeatureValue(FEATURE_ENEMYHADFLAG, 0, attacker);
+    }
+
+    // HEALTH
+    SV_ExtendedRecordSetFeatureValue(FEATURE_HEALTH, ps->stats[STAT_HEALTH], client);
+    // MAX_HEALTH
+    SV_ExtendedRecordSetFeatureValue(FEATURE_MAX_HEALTH, ps->stats[STAT_MAX_HEALTH], client);
+    // ARMOR
+    SV_ExtendedRecordSetFeatureValue(FEATURE_ARMOR, ps->stats[STAT_ARMOR], client);
+    // SPEED
+    // Total amount of speed in all directions
+    SV_ExtendedRecordSetFeatureValue(FEATURE_SPEED, ( abs(ps->velocity[0]) + abs(ps->velocity[1]) + abs(ps->velocity[2]) ), client);
+    // SPEEDRATIO
+    if ( ps->speed > 0 ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_SPEEDRATIO, (double)( abs(ps->velocity[0]) + abs(ps->velocity[1]) + abs(ps->velocity[2]) ) / ps->speed, client);
+    } else {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_SPEEDRATIO, 0, client);
+    }
+    // DAMAGE_COUNT 
+    SV_ExtendedRecordSetFeatureValue(FEATURE_DAMAGE_COUNT, ps->damageCount, client);
+
+    //== Update special delta features: values that need to be computed only in difference with the previous interframe when there's a change, or after other features
     // Note: you should only update those features at the end, because you WANT to make sure that any change to any modifier feature already happened, so that we know for sure that the interframe will be committed or not.
 
     // REACTIONTIME
     if (sv_interframeModified[client] == qtrue) {
         // Update reaction time (svs.time delta) only if we have committed the last frame, because we want the difference (the delta) between the last move and the new one
         SV_ExtendedRecordSetFeatureValue(FEATURE_REACTIONTIME, svs.time - sv_interframe[FEATURE_SVSTIME].value[client], client);
-    }
 
-    // SVSTIME
-    // We have to update SVSTIME only after reaction time, and we also update it if it doesn't have any value (because we don't want that the first interframe of a player is set to the start of the server/map!)
-    if (sv_interframeModified[client] == qtrue || sv_interframe[FEATURE_SVSTIME].value[client] == 0)
+        // SVSTIME
+        // We have to update SVSTIME only after reaction time, and we also update it if it doesn't have any value (because we don't want that the first interframe of a player is set to the start of the server/map!)
         SV_ExtendedRecordSetFeatureValue(FEATURE_SVSTIME, svs.time, client);
     
-    // SVTIME
-    if (sv_interframeModified[client] == qtrue || sv_interframe[FEATURE_SVTIME].value[client] == 0)
+        // SVTIME
         SV_ExtendedRecordSetFeatureValue(FEATURE_SVTIME, sv.time, client);
+    }
+    
+    //== Update the previous player's state with the current one (in preparation for the next iteration)
+    Com_Memcpy(&prev_ps[client], ps, sizeof(playerState_t));
 }
 
 // Setup the values for the players table entry of one client (these are extended identification informations, useful at prediction to do a post action like kick or ban, or just to report with the proper name and ip)
@@ -834,7 +1128,7 @@ char *SV_ExtendedRecordPlayersTableToCSV(char *csv_string, int max_string_size, 
 // Note: you should use this function whenever you want to modify the value of a feature for a client, because it will take care of writing down the interframes values whenever needed (else you may lose the data of your interframes!), because the function to commit the features values is only called from here.
 void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, int client) {
     // If the value has changed (or the old one is NaN), we do something, else we just keep it like that
-    // TODO: maybe compare the delta (diff) below a certain threshold for floats, eg: if (fabs(a - b) < SOME_DELTA)
+    // FIXME: maybe compare the delta (diff) below a certain threshold for floats, eg: if (fabs(a - b) < SOME_DELTA)
     if ( (sv_interframe[feature].value[client] != value) | isnan(sv_interframe[feature].value[client]) ) {
         // If this feature is a modifier, and the interframe wasn't already modified in the current frame, we switch the modified flag and commit the previous interframe (else if it was already modified, we wait until all features modifications take place and we'll see at the next frame)
         if ( sv_interframe[feature].modifier == qtrue && sv_interframeModified[client] != qtrue ) {
@@ -848,7 +1142,7 @@ void SV_ExtendedRecordSetFeatureValue(interframeIndex_t feature, double value, i
         sv_interframe[feature].value[client] = value;
     }
 }
-// TODO: try to understand why the following (when set in the beginning of SV_ExtendedRecordSetFeatureValue):
+// FIXME: try to understand why the following (when set in the beginning of SV_ExtendedRecordSetFeatureValue):
 /*
     if (feature == LABEL_CHEATER) {
         Com_DPrintf("OACS TEST3 old:%.0f new:%.0f\n", sv_interframe[feature].value[client], value);
