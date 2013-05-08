@@ -203,6 +203,7 @@ void SV_ExtendedRecordInterframeInitValues(int client);
 double SV_ExtendedRecordInterframeInitValue(int client, int feature);
 void SV_ExtendedRecordInterframeUpdate(int client);
 void SV_ExtendedRecordInterframeUpdateValues(int client);
+void SV_ExtendedRecordInterframeUpdateValuesAttacker(int client);
 void SV_ExtendedRecordPlayersTableInit(int client);
 //feature_t* SV_ExtendedRecordInterframeToArray(interframe_t interframe);
 //cJSON *SV_ExtendedRecordFeaturesToJson(feature_t *interframe, qboolean savetypes, qboolean savevalues, int client);

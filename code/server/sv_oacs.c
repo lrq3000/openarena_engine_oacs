@@ -710,11 +710,17 @@ void SV_ExtendedRecordInterframeUpdate(int client) {
         // Else if the client is not already fully connected in the game, we just skip this client
         } else if ( svs.clients[i].state < CS_ACTIVE ) {
 			continue;
-        // Avoid updating bots
-        } else if ( SV_IsBot(i) ) {
-            continue;
         } // Note: we do update spectators and players even when below the number of required human players, but we just don't save them (see SV_ExtendedRecordWriteValues()). This allows to always have fresh values (eg: reactiontime won't get too huge).
         // Ok this player is valid, we update the values
+        
+        // Update the features' values that are set from the victims
+        // Note: this must be done BEFORE the bot check, because we want that victims bots set features of human attackers
+        //SV_ExtendedRecordInterframeUpdateValuesAttacker(i);
+
+        // Avoid updating bots
+        if ( SV_IsBot(i) ) {
+            continue;
+        }
 
         // Update the features' values
         SV_ExtendedRecordInterframeUpdateValues(i);
@@ -797,19 +803,6 @@ void SV_ExtendedRecordInterframeUpdateValues(int client) {
 
     // HITS
     SV_ExtendedRecordSetFeatureValue(FEATURE_HITS, ps->persistant[PERS_HITS], client);
-
-    // FRAGS and FRAGSINAROW alternative way of computing (more reliable but works only when a player kills a player, not a bot)
-    // we check if the current player is dead, then the attacker gets a frag
-    // Note: this must be done before updating FEATURE_DEATH
-    // Note2: works only when a player kills another player. Won't work with bots (since they are not taken in account in interframes).
-    /*
-    if ( (ps->persistant[PERS_KILLED] > sv_interframe[FEATURE_DEATH].value[client]) ) {
-        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGS, attacker, attacker);
-        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, sv_interframe[FEATURE_FRAGSINAROW].value[attacker] + 1, attacker);
-    } else { // reset the accumulator if no frag in this frame
-        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, 0, attacker);
-    }
-    */
 
     // DEATHACC
     // increment when the value change
@@ -970,17 +963,6 @@ void SV_ExtendedRecordInterframeUpdateValues(int client) {
     } // FIXME: reset the HOLYSHIT accumulator? When?
     // RANK
     SV_ExtendedRecordSetFeatureValue(FEATURE_RANK, ps->persistant[PERS_RANK], client);
-    // ENEMYHADFLAG
-    // If the current client has a flag and is dead, the last attacker gets the ENEMYHADFLAG set to true
-    // Note: works only when a player killed another player. It won't work if the player killed a bot which had the flag.
-    // FIXME: this apparently produce a random crash when picking the enemy flag and killing the enemy while he has the flag (tested against bots).
-    /*
-    if ( sv_interframe[FEATURE_HASFLAG].value[client] && sv_interframe[FEATURE_DEATHACC].value[client] >= 0 ) { // ps->stats[STAT_HEALTH] <= 0 is not reliable for this
-        SV_ExtendedRecordSetFeatureValue(FEATURE_ENEMYHADFLAG, 1, attacker);
-    } else { // else the next person hit by the attacker will reset the flag to 0
-        SV_ExtendedRecordSetFeatureValue(FEATURE_ENEMYHADFLAG, 0, attacker);
-    }
-    */
 
     // HEALTH
     SV_ExtendedRecordSetFeatureValue(FEATURE_HEALTH, ps->stats[STAT_HEALTH], client);
@@ -1018,6 +1000,44 @@ void SV_ExtendedRecordInterframeUpdateValues(int client) {
     
     //== Update the previous player's state with the current one (in preparation for the next iteration)
     Com_Memcpy(&prev_ps[client], ps, sizeof(playerState_t));
+}
+
+// Update the features of the attacker from the victim
+// WARNING: only put here features that are set on the attacker, never the victim! Else you may cause a crash (because the victim can be a bot, but bots don't have interframes)
+void SV_ExtendedRecordInterframeUpdateValuesAttacker(int client) {
+    int attacker;
+    playerState_t	*ps;
+    ps = SV_GameClientNum( client ); // get the player's state
+    attacker = ps->persistant[PERS_ATTACKER];
+
+    // Check that the attacker is human, else we abort
+    if (SV_IsBot(attacker)) {
+        return;
+    }
+
+    // FRAGS and FRAGSINAROW alternative way of computing (more reliable but works only when a player kills a player, not a bot)
+    // we check if the current player is dead, then the attacker gets a frag
+    // Note: this must be done before updating FEATURE_DEATH
+    // Note2: works only when a player kills another player. Won't work with bots (since they are not taken in account in interframes).
+    /*
+    if ( (ps->persistant[PERS_KILLED] > sv_interframe[FEATURE_DEATH].value[client]) ) {
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGS, attacker, attacker);
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, sv_interframe[FEATURE_FRAGSINAROW].value[attacker] + 1, attacker);
+    } else { // reset the accumulator if no frag in this frame
+        SV_ExtendedRecordSetFeatureValue(FEATURE_FRAGSINAROW, 0, attacker);
+    }
+    */
+
+    // ENEMYHADFLAG
+    // If the current client has a flag and is dead, the last attacker gets the ENEMYHADFLAG set to true
+    // Note: works only when a player killed another player. It won't work if the player killed a bot which had the flag.
+    // FIXME: this apparently produce a random crash when picking the enemy flag and killing the enemy while he has the flag (tested against bots).
+    if ( sv_interframe[FEATURE_HASFLAG].value[client] && sv_interframe[FEATURE_DEATHACC].value[client] >= 0 ) { // ps->stats[STAT_HEALTH] <= 0 is not reliable for this
+        SV_ExtendedRecordSetFeatureValue(FEATURE_ENEMYHADFLAG, 1, attacker);
+    } else { // else the next person hit by the attacker will reset the flag to 0
+        SV_ExtendedRecordSetFeatureValue(FEATURE_ENEMYHADFLAG, 0, attacker);
+    }
+    
 }
 
 // Setup the values for the players table entry of one client (these are extended identification informations, useful at prediction to do a post action like kick or ban, or just to report with the proper name and ip)
